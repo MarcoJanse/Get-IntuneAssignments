@@ -14,9 +14,9 @@
 
 .TAGS Intune Configuration Management Microsoft Graph Azure
 
-.LICENSEURI https://github.com/YOURUSERNAME/Get-IntuneAssignments/blob/main/LICENSE
+.LICENSEURI https://github.com/amirjs/Get-IntuneAssignments/blob/main/LICENSE
 
-.PROJECTURI https://github.com/YOURUSERNAME/Get-IntuneAssignments
+.PROJECTURI https://github.com/amirjs/Get-IntuneAssignments/tree/main
 
 .ICONURI
 
