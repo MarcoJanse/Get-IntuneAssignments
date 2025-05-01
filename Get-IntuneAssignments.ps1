@@ -2,7 +2,7 @@
 
 <#PSScriptInfo
 
-.VERSION 1.0.4
+.VERSION 1.0.7
 
 .GUID 3b9c9df5-3b5f-4c1a-9a6c-097be91fa292
 
@@ -43,6 +43,7 @@ Initial release - Get all Intune Configuration Profile assignments
 .DESCRIPTION
     This script retrieves assignments and filters for various Intune configuration types including:
     - Device Configuration Profiles
+    - Device Management Configuration Policies
     - Compliance Policies
     - Security Baselines
     - Administrative Templates
@@ -51,7 +52,7 @@ Initial release - Get all Intune Configuration Profile assignments
     - Windows Information Protection Policies
     - Remediation Scripts
     - Device Management Scripts
-    - Autopilot Profiles
+    - Autopilot Profiles (v1)    
 - Shows included and excluded groups for each assignment
 - Displays filter information if configured
 - Export results to CSV
@@ -76,12 +77,12 @@ Initial release - Get all Intune Configuration Profile assignments
     Returns assignments that include or exclude the specified group.
 
 .NOTES
-    Version:        1.0.4
+    Version:        1.0.7
     Author:         Amir Joseph Sayes
     Company:        amirsayes.co.uk
     Creation Date:  2025-04-30
     Requirements:   
-    - PowerShell 5.1 or higher
+    - PowerShell 7.1 or higher
     - Microsoft Graph PowerShell SDK modules
 #>
 
@@ -443,6 +444,73 @@ function Get-IntuneDeviceConfigurationAssignment {
             [PSCustomObject]@{
                 DisplayName = $config.DisplayName
                 ProfileType = $config.AdditionalProperties.'@odata.type' -replace '^#microsoft\.graph\.', ''
+                IncludedGroups = $includedGroups
+                ExcludedGroups = $excludedGroups
+            }
+        }
+    }
+}
+
+function Get-IntuneDeviceManagementConfigurationPolicyAssignment {
+    param (
+        [Parameter(Mandatory = $false)]
+        [string]$displayName,
+        [Parameter(Mandatory = $false)]
+        [string]$groupId
+    )
+
+    if ($displayName) {
+        $ConfigurationPolicy = Get-MgBetaDeviceManagementConfigurationPolicy -Filter "name eq '$displayName'" -ExpandProperty "assignments"
+    } else {
+        $ConfigurationPolicy = Get-MgBetaDeviceManagementConfigurationPolicy -All -ExpandProperty "assignments"
+    }
+
+    foreach ($policy in $ConfigurationPolicy) {
+        $includedGroups = @()
+        $excludedGroups = @()
+        $FilterName = @()
+
+        $assignments = $policy.Assignments
+        foreach ($assignment in $assignments) {
+            # Skip if we're looking for a specific group and this isn't it
+            if ($groupId -and $assignment.Target.AdditionalProperties.groupId -ne $groupId) {
+                continue
+            }
+
+            if ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.groupAssignmentTarget') {
+                $CurrentincludedGroup = (Get-MgbetaGroup -GroupId $($assignment.Target.AdditionalProperties.groupId)).DisplayName
+                if ($($assignment.Target.DeviceAndAppManagementAssignmentFilterId) -and $assignment.Target.DeviceAndAppManagementAssignmentFilterId -ne [guid]::Empty) {
+                    $FilterName = " | Filter: " + (Get-MgBetaDeviceManagementAssignmentFilter -DeviceAndAppManagementAssignmentFilterId $($assignment.Target.DeviceAndAppManagementAssignmentFilterId)).DisplayName
+                } else {
+                    $FilterName = " | No Filter"
+                }
+                $includedGroups += $CurrentincludedGroup + $FilterName
+            } elseif ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.allDevicesAssignmentTarget') {
+                $CurrentincludedGroup = "All Devices"
+                if ($($assignment.Target.DeviceAndAppManagementAssignmentFilterId) -and $assignment.Target.DeviceAndAppManagementAssignmentFilterId -ne [guid]::Empty) {
+                    $FilterName = " | Filter: " + (Get-MgBetaDeviceManagementAssignmentFilter -DeviceAndAppManagementAssignmentFilterId $($assignment.Target.DeviceAndAppManagementAssignmentFilterId)).DisplayName
+                } else {
+                    $FilterName = " | No Filter"
+                }
+                $includedGroups += $CurrentincludedGroup + $FilterName
+            } elseif ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.allLicensedUsersAssignmentTarget') {
+                $CurrentincludedGroup = "All Users"
+                if ($($assignment.Target.DeviceAndAppManagementAssignmentFilterId) -and $assignment.Target.DeviceAndAppManagementAssignmentFilterId -ne [guid]::Empty) {
+                    $FilterName = " | Filter: " + (Get-MgBetaDeviceManagementAssignmentFilter -DeviceAndAppManagementAssignmentFilterId $($assignment.Target.DeviceAndAppManagementAssignmentFilterId)).DisplayName
+                } else {
+                    $FilterName = " | No Filter"
+                }
+                $includedGroups += $CurrentincludedGroup + $FilterName
+            } elseif ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.exclusionGroupAssignmentTarget') {
+                $excludedGroups += (Get-MgbetaGroup -GroupId $($assignment.Target.AdditionalProperties.groupId)).DisplayName
+            }
+        }
+
+        # Only return results if we found assignments (and they match our group filter if specified)
+        if ($includedGroups.Count -gt 0 -or $excludedGroups.Count -gt 0) {
+            [PSCustomObject]@{
+                DisplayName = $policy.Name
+                ProfileType = "Device Management Configuration Policy"
                 IncludedGroups = $includedGroups
                 ExcludedGroups = $excludedGroups
             }
@@ -826,6 +894,7 @@ $processSteps = @(
     @{ Name = "Security Baselines"; Function = "Get-IntuneDeviceManagementSecurityBaselineAssignment" },
     @{ Name = "Device Compliance Policies"; Function = "Get-IntuneDeviceCompliancePolicyAssignment" },
     @{ Name = "Device Configurations"; Function = "Get-IntuneDeviceConfigurationAssignment" },
+    @{ Name = "Device Management Configuration Policies"; Function = "Get-IntuneDeviceManagementConfigurationPolicyAssignment" },
     @{ Name = "Administrative Templates"; Function = "Get-IntuneDeviceConfigurationAdministrativeTemplatesAssignment" },
     @{ Name = "Remediation Scripts"; Function = "Get-IntuneRemediationScriptAssignment" },
     @{ Name = "Autopilot Profiles"; Function = "Get-IntuneAutopilotProfileAssignment" },
