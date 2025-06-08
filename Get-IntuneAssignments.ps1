@@ -86,7 +86,7 @@ Initial release - Get all Intune Configuration Profile assignments
     - Microsoft Graph PowerShell SDK modules
 #>
 
-[CmdletBinding()]
+[CmdletBinding(DefaultParameterSetName = 'Interactive')]
 param (
     [Parameter(Mandatory = $false)]
     [ValidateNotNullOrEmpty()]
@@ -94,7 +94,32 @@ param (
     
     [Parameter(Mandatory = $false)]
     [ValidateNotNullOrEmpty()]
-    [string]$GroupName
+    [string]$GroupName,
+
+    # Authentication Parameters
+    [Parameter(Mandatory = $false)]
+    [ValidateSet('Interactive', 'Certificate', 'ClientSecret', 'ManagedIdentity')]
+    [string]$AuthMethod = 'Interactive',
+
+    [Parameter(Mandatory = $false, ParameterSetName = 'Interactive')]
+    [Parameter(Mandatory = $true, ParameterSetName = 'Certificate')]    
+    [Parameter(Mandatory = $true, ParameterSetName = 'ManagedIdentity')]
+    [Parameter(Mandatory = $true, ParameterSetName = 'Credential')]
+    [string]$TenantId,
+
+    [Parameter(Mandatory = $true, ParameterSetName = 'Certificate')]    
+    [string]$ClientId,
+
+    [Parameter(ParameterSetName = 'Certificate')]
+    [string]$CertificateThumbprint,
+
+    [Parameter(ParameterSetName = 'Certificate')]
+    [string]$CertificatePath,
+
+    [Parameter(Mandatory = $true, ParameterSetName = 'Credential')]
+    [System.Management.Automation.PSCredential]
+    [System.Management.Automation.Credential()]
+    $Credential
 )
 
 #region Support Functions
@@ -857,24 +882,27 @@ function Get-IntuneWindowsInformationProtectionPolicyAssignment {
 #region Module Installation
 
 # Module version configuration
-$script:GraphModuleVersion = "2.25.0"
+$script:GraphModuleVersion = "2.28.0"
 
 $requiredModules = @(
     "Microsoft.Graph.Authentication",
     "Microsoft.Graph.Beta.DeviceManagement",
     "Microsoft.Graph.Beta.Groups",
     "Microsoft.Graph.Beta.Devices.CorporateManagement",
-    "Microsoft.Graph.Beta.DeviceManagement.Enrollment"
+    "Microsoft.Graph.Beta.DeviceManagement.Enrollment"    
 )
 
 Write-Host "Checking required modules (version $script:GraphModuleVersion)..." -ForegroundColor Cyan
 $modulesNeedingInstall = @()
 
 foreach ($module in $requiredModules) {
-    try {
+    try {        
         $existingModule = Get-Module -Name $module -ListAvailable | Where-Object { $_.Version -eq $script:GraphModuleVersion }
         if (-not $existingModule) {
             $modulesNeedingInstall += $module
+        }
+        else {
+            Write-Host "Module $module version $script:GraphModuleVersion is already installed." -ForegroundColor Green
         }
     } catch {
         Write-Warning "Error checking module $module`: $_"
@@ -905,8 +933,15 @@ if ($modulesNeedingInstall.Count -gt 0) {
 # Import all required modules with specific version
 foreach ($module in $requiredModules) {
     try {
-        Import-Module -Name $module -RequiredVersion $script:GraphModuleVersion -Force -ErrorAction Stop
-        Write-Verbose "Successfully imported $module version $script:GraphModuleVersion"
+        # if module is not already loaded, import it
+        if (-not (Get-Module -Name $module)) {
+            Write-Host "Importing $module version $script:GraphModuleVersion..." -ForegroundColor Yellow
+            Import-Module -Name $module -RequiredVersion $script:GraphModuleVersion -Force -ErrorAction Stop
+            write-host "Successfully imported $module version $script:GraphModuleVersion" -ForegroundColor Green
+        } else {
+            Write-Host "$module is already loaded." -ForegroundColor Green
+            continue
+        }
     } catch {
         Write-Error "Failed to import module $module. Error: $_"
         return
@@ -914,18 +949,82 @@ foreach ($module in $requiredModules) {
 }
 #endregion
 
+
 # Connect to Microsoft Graph if not already connected
 try {
     if (-not (Get-MgContext)) {
-        Write-Verbose "Connecting to Microsoft Graph..."
-        Connect-MgGraph -Scopes @(
-            "DeviceManagementConfiguration.Read.All",
-            "DeviceManagementApps.Read.All",
-            "DeviceManagementManagedDevices.Read.All",
-            "DeviceManagementServiceConfig.Read.All",
-            "Group.Read.All",
-            "Directory.Read.All"
-        )
+        Write-Host "Connecting to Microsoft Graph..." -ForegroundColor Yellow
+        
+        $connectParams = @{
+            NoWelcome = $true
+        }
+
+        switch ($PSCmdlet.ParameterSetName) {
+            'Interactive' {
+                if ($TenantId) { $connectParams['TenantId'] = $TenantId }
+                Connect-MgGraph @connectParams -Scopes "DeviceManagementServiceConfig.Read.All","DeviceManagementConfiguration.Read.All", "DeviceManagementManagedDevices.Read.All", "DeviceManagementApps.Read.All", "Group.Read.All"
+            }
+            'Certificate' {
+                if (-not ($CertificateThumbprint -or $CertificatePath)) {
+                    throw "Either CertificateThumbprint or CertificatePath must be provided for certificate authentication"
+                }
+
+                $connectParams += @{
+                    ClientId = $ClientId
+                    TenantId = $TenantId
+                }
+                
+                if ($CertificatePath) {
+                    $connectParams['CertificatePath'] = $CertificatePath
+                }
+                if ($CertificateThumbprint) {
+                    $connectParams['CertificateThumbprint'] = $CertificateThumbprint
+                }
+
+                Write-Verbose "Using certificate authentication"
+                Connect-MgGraph @connectParams
+            }
+            'ManagedIdentity' {
+                $connectParams += @{
+                    Identity = $true
+                    TenantId = $TenantId
+                }
+                Connect-MgGraph @connectParams
+            }
+            'Credential' {
+                $connectParams += @{
+                    TenantId = $TenantId
+                    Credential = $Credential
+                }
+                Connect-MgGraph @connectParams
+            }
+        }
+
+        $context = Get-MgContext
+        if (-not $context) {
+            throw "Failed to establish Microsoft Graph connection"
+        }
+        
+        if ($context.ManagedIdentityId) {
+            Write-Host "Successfully connected to Microsoft Graph using Managed Identity: $($context.ManagedIdentityId)" -ForegroundColor Green
+        } elseif ($context.Account) {
+            Write-Host "Successfully connected to Microsoft Graph as: $($context.Account)" -ForegroundColor Green
+        } elseif ($context.AppName) {
+            Write-Host "Successfully connected to Microsoft Graph using Client ID: $($context.ClientId) and Application Name: $($context.AppName)" -ForegroundColor Green
+        } else {
+            Write-Host "Successfully connected to Microsoft Graph" -ForegroundColor Green
+        }
+                
+        Write-Host "Scopes: $($context.Scopes -join ', ')" -ForegroundColor Yellow
+    }
+    else {
+        if ($PSCmdlet.ParameterSetName -eq 'ManagedIdentity') {
+            Write-Host "Already connected to Microsoft Graph as: $((Get-MgContext).ManagedIdentityId)" -ForegroundColor Green
+            write-host "Scope: $((Get-MgContext).Scopes)" -ForegroundColor Green
+        } else {
+            Write-Host "Already connected to Microsoft Graph as: $((Get-MgContext).Account)" -ForegroundColor Green
+            write-host "Scope: $((Get-MgContext).Scopes)" -ForegroundColor Green
+        }
     }
 } catch {
     Write-Error "Failed to connect to Microsoft Graph: $_"
