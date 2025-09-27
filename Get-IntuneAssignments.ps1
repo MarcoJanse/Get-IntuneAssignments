@@ -40,6 +40,7 @@ Initial release - Get all Intune Configuration Profile assignments
 .SYNOPSIS
     Retrieves all Intune Configuration Profile assignments.
 
+
 .DESCRIPTION
     This script retrieves assignments and filters for various Intune configuration types including:
     - Device Configuration Profiles
@@ -52,11 +53,21 @@ Initial release - Get all Intune Configuration Profile assignments
     - Windows Information Protection Policies
     - Remediation Scripts
     - Device Management Scripts
-    - Autopilot Profiles (v1)    
-- Shows included and excluded groups for each assignment
-- Displays filter information if configured
-- Export results to CSV
-- Filter by specific Azure AD group
+    - Autopilot Profiles (v1)
+    
+    Required Microsoft Graph API permissions:
+    - DeviceManagementConfiguration.Read.All
+    - DeviceManagementApps.Read.All
+    - DeviceManagementManagedDevices.Read.All
+    - DeviceManagementServiceConfig.Read.All
+    - DeviceManagementScripts.Read.All
+    - Group.Read.All
+    - Directory.Read.All
+
+    - Shows included and excluded groups for each assignment
+    - Displays filter information if configured
+    - Export results to CSV
+    - Filter by specific Azure AD group
 
 .PARAMETER OutputFile
     Path to export the results as CSV. If not specified, results will be displayed in console.
@@ -78,11 +89,9 @@ Initial release - Get all Intune Configuration Profile assignments
 .PARAMETER ClientId
     The client ID (application ID) to use for certificate or managed identity authentication.
 
-.PARAMETER CertificateThumbprint
-    The thumbprint of the certificate to use for authentication. Requires ClientId and TenantId.
 
-.PARAMETER CertificatePath
-    The path to a certificate file to use for authentication. Requires ClientId and TenantId.
+.PARAMETER CertificateThumbprint
+    The thumbprint of the certificate to use for authentication. Requires ClientId and TenantId. Only thumbprint-based authentication is supported; CertificatePath is not supported.
 
 .PARAMETER ClientSecretCredential
     A PSCredential object containing the client secret credential information.
@@ -116,7 +125,7 @@ Initial release - Get all Intune Configuration Profile assignments
     Company:        amirsayes.co.uk
     Creation Date:  2025-04-30
     Requirements:   
-    - PowerShell 7.1 or higher
+    - PowerShell 7 or higher
     - Microsoft Graph PowerShell SDK modules
 #>
 
@@ -146,8 +155,7 @@ param (
     [string]$ClientId,
 
     [Parameter(ParameterSetName = 'Certificate')]
-    [string]$CertificateThumbprint,    [Parameter(ParameterSetName = 'Certificate')]
-    [string]$CertificatePath,
+    [string]$CertificateThumbprint,
 
     [Parameter(Mandatory = $true, ParameterSetName = 'ClientSecret')]
     [System.Management.Automation.PSCredential]
@@ -993,23 +1001,19 @@ try {
                 Connect-MgGraph @connectParams -Scopes "DeviceManagementServiceConfig.Read.All","DeviceManagementConfiguration.Read.All", "DeviceManagementManagedDevices.Read.All", "DeviceManagementApps.Read.All", "Group.Read.All"
             }
             'Certificate' {
-                if (-not ($CertificateThumbprint -or $CertificatePath)) {
-                    throw "Either CertificateThumbprint or CertificatePath must be provided for certificate authentication"
+                if (-not $CertificateThumbprint) {
+                    throw "CertificateThumbprint must be provided for certificate authentication. CertificatePath is not supported."
                 }
 
                 $connectParams += @{
                     ClientId = $ClientId
                     TenantId = $TenantId
+                    CertificateThumbprint = $CertificateThumbprint
                 }
-                
-                if ($CertificatePath) {
-                    $connectParams['CertificatePath'] = $CertificatePath
-                }
-                if ($CertificateThumbprint) {
-                    $connectParams['CertificateThumbprint'] = $CertificateThumbprint
-                }                Write-Verbose "Using certificate authentication"
+                Write-Verbose "Using certificate authentication (thumbprint only)"
                 Connect-MgGraph @connectParams
-            }              'ClientSecret' {
+            }
+            'ClientSecret' {
                 # Check if ClientSecretCredential is provided
                 if (-not($ClientSecretCredential -and $TenantId)) {
                     throw "Both ClientSecretCredential object (which contains ClientID and ClientSecret) and TenantId must be provided for client secret authentication"

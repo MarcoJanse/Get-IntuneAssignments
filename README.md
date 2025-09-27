@@ -20,12 +20,14 @@ Install-Script -Name Get-IntuneAssignments
 
 ## API Permissions
 
+
 The following Microsoft Graph API permissions are required:
 
 - DeviceManagementConfiguration.Read.All
 - DeviceManagementApps.Read.All
 - DeviceManagementManagedDevices.Read.All
 - DeviceManagementServiceConfig.Read.All
+- DeviceManagementScripts.Read.All
 - Group.Read.All
 - Directory.Read.All
 
@@ -45,6 +47,9 @@ Get-IntuneAssignments -GroupName "Pilot Users"
 
 # Get assignments for a specific group and export to CSV
 Get-IntuneAssignments -GroupName "Pilot Users" -OutputFile "C:\temp\Pilot Users Assignments.csv"
+
+# Authenticate using certificate thumbprint (App registration with certificate in certificate store)
+Get-IntuneAssignments -AuthMethod Certificate -TenantId "contoso.onmicrosoft.com" -ClientId "<app-client-id>" -CertificateThumbprint "<thumbprint>"
 ```
 
 ## Features
@@ -72,6 +77,19 @@ The script returns objects with the following properties:
 - ProfileType: Type of configuration (e.g., Device Configuration, Compliance Policy)
 - IncludedGroups: Groups included in the assignment (with filter information if applicable)
 - ExcludedGroups: Groups excluded from the assignment
+
+
+## Authentication Methods
+
+Supported authentication methods:
+
+- **Interactive** (default): Prompts for user login interactively.
+- **Certificate**: Uses a certificate in the local certificate store, specified by thumbprint. Only the `-CertificateThumbprint` parameter is supported. `-CertificatePath` is not supported.
+- **ClientSecret**: Uses a client secret via a PSCredential object.
+- **UserManagedIdentity**: Uses a user-assigned managed identity.
+- **SystemManagedIdentity**: Uses a system-assigned managed identity.
+
+**Note:** For certificate authentication, the certificate must be installed in the local certificate store and accessible by thumbprint. The script does not support loading certificates from file paths.
 
 ## Contributing
 
