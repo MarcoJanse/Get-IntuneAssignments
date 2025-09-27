@@ -1,8 +1,8 @@
-#Requires -Version 7.1
+#Requires -Version 7
 
 <#PSScriptInfo
 
-.VERSION 1.0.9
+.VERSION 1.0.10
 
 .GUID 3b9c9df5-3b5f-4c1a-9a6c-097be91fa292
 
@@ -40,6 +40,7 @@ Initial release - Get all Intune Configuration Profile assignments
 .SYNOPSIS
     Retrieves all Intune Configuration Profile assignments.
 
+
 .DESCRIPTION
     This script retrieves assignments and filters for various Intune configuration types including:
     - Device Configuration Profiles
@@ -52,11 +53,21 @@ Initial release - Get all Intune Configuration Profile assignments
     - Windows Information Protection Policies
     - Remediation Scripts
     - Device Management Scripts
-    - Autopilot Profiles (v1)    
-- Shows included and excluded groups for each assignment
-- Displays filter information if configured
-- Export results to CSV
-- Filter by specific Azure AD group
+    - Autopilot Profiles (v1)
+    
+    Required Microsoft Graph API permissions:
+    - DeviceManagementConfiguration.Read.All
+    - DeviceManagementApps.Read.All
+    - DeviceManagementManagedDevices.Read.All
+    - DeviceManagementServiceConfig.Read.All
+    - DeviceManagementScripts.Read.All
+    - Group.Read.All
+    - Directory.Read.All
+
+    - Shows included and excluded groups for each assignment
+    - Displays filter information if configured
+    - Export results to CSV
+    - Filter by specific Azure AD group
 
 .PARAMETER OutputFile
     Path to export the results as CSV. If not specified, results will be displayed in console.
@@ -64,29 +75,82 @@ Initial release - Get all Intune Configuration Profile assignments
 .PARAMETER GroupName
     Name of the Azure AD group to filter assignments. Only assignments that include or exclude this group will be returned.
 
+.PARAMETER AuthMethod
+    Authentication method to use when connecting to Microsoft Graph. Valid values are:
+    - Interactive (default)
+    - Certificate
+    - ClientAppAccess
+    - UserManagedIdentity
+    - SystemManagedIdentity
+
+.PARAMETER TenantId
+    The Azure AD tenant ID to connect to.
+
+.PARAMETER ClientId
+    The client ID (application ID) to use for certificate or managed identity authentication.
+
+
+.PARAMETER CertificateThumbprint
+    The thumbprint of the certificate to use for authentication. Requires ClientId and TenantId. Only thumbprint-based authentication is supported; CertificatePath is not supported.
+
+.PARAMETER ClientSecretCredential
+    A PSCredential object containing the client secret credential information.
+    Username should be the ClientId, and Password should be the ClientSecret.
+    This is the recommended way to use client secret authentication.
+
+
 .EXAMPLE
     Get-IntuneAssignments
-    Returns all Intune configuration assignments and displays them in the console.
+    Returns all Intune configuration assignments and displays them in the console using interactive authentication.
 
 .EXAMPLE
     Get-IntuneAssignments -OutputFile "C:\temp\assignments.csv"
-    Retrieves all assignments and exports them to the specified CSV file.
+    Retrieves all assignments using interactive authentication and exports them to the specified CSV file.
 
 .EXAMPLE
     Get-IntuneAssignments -GroupName "Pilot Users"
-    Returns assignments that include or exclude the specified group.
+    Returns assignments that include or exclude the specified group using interactive authentication.
 
-.NOTES
-    Version:        1.0.9
+.EXAMPLE
+    Get-IntuneAssignments -AuthMethod Interactive -TenantId "contoso.onmicrosoft.com"
+    Connects interactively to a specific tenant.
+
+.EXAMPLE
+    # Certificate authentication (thumbprint, app registration with certificate in store)
+    Get-IntuneAssignments -AuthMethod Certificate -TenantId "contoso.onmicrosoft.com" -ClientId "12345678-1234-1234-1234-123456789012" -CertificateThumbprint "1234567890ABCDEF1234567890ABCDEF12345678"
+    Connects using certificate authentication with a certificate thumbprint.
+
+.EXAMPLE
+    # Client secret authentication
+    $credential = New-Object System.Management.Automation.PSCredential("12345678-1234-1234-1234-123456789012", (ConvertTo-SecureString "YourClientSecret" -AsPlainText -Force))
+    Get-IntuneAssignments -AuthMethod ClientSecret -TenantId "contoso.onmicrosoft.com" -ClientSecretCredential $credential
+    Connects using client secret authentication with a PSCredential object.
+
+.EXAMPLE
+    # User-assigned managed identity authentication
+    Get-IntuneAssignments -AuthMethod UserManagedIdentity -TenantId "contoso.onmicrosoft.com" -ClientId "<user-assigned-managed-identity-client-id>"
+    Connects using a user-assigned managed identity.
+
+.EXAMPLE
+    # System-assigned managed identity authentication
+    Get-IntuneAssignments -AuthMethod SystemManagedIdentity -TenantId "contoso.onmicrosoft.com"
+    Connects using a system-assigned managed identity.
+
+.EXAMPLE
+    # Group filtering and CSV export with certificate authentication
+    Get-IntuneAssignments -AuthMethod Certificate -TenantId "contoso.onmicrosoft.com" -ClientId "12345678-1234-1234-1234-123456789012" -CertificateThumbprint "1234567890ABCDEF1234567890ABCDEF12345678" -GroupName "Pilot Users" -OutputFile "C:\temp\PilotUsersAssignments.csv"
+    Retrieves assignments for a specific group using certificate authentication and exports to CSV.
+
+    Version:        1.0.10
     Author:         Amir Joseph Sayes
     Company:        amirsayes.co.uk
     Creation Date:  2025-04-30
     Requirements:   
-    - PowerShell 7.1 or higher
+    - PowerShell 7 or higher
     - Microsoft Graph PowerShell SDK modules
 #>
 
-[CmdletBinding()]
+[CmdletBinding(DefaultParameterSetName = 'Interactive')]
 param (
     [Parameter(Mandatory = $false)]
     [ValidateNotNullOrEmpty()]
@@ -94,7 +158,30 @@ param (
     
     [Parameter(Mandatory = $false)]
     [ValidateNotNullOrEmpty()]
-    [string]$GroupName
+    [string]$GroupName,    # Authentication Parameters    
+    [Parameter(Mandatory = $false)]
+    [ValidateSet('Interactive', 'Certificate', 'ClientSecret', 'UserManagedIdentity', 'SystemManagedIdentity')]
+    [string]$AuthMethod = 'Interactive',
+
+    [Parameter(Mandatory = $false, ParameterSetName = 'Interactive')]
+    [Parameter(Mandatory = $true, ParameterSetName = 'Certificate')]
+    [Parameter(Mandatory = $true, ParameterSetName = 'ClientSecret')]
+    [Parameter(Mandatory = $true, ParameterSetName = 'UserManagedIdentity')]
+    [Parameter(Mandatory = $true, ParameterSetName = 'Credential')]
+    [string]$TenantId,
+
+    [Parameter(Mandatory = $true, ParameterSetName = 'Certificate')]
+    [Parameter(Mandatory = $false, ParameterSetName = 'ClientSecret')]
+    [Parameter(Mandatory = $true, ParameterSetName = 'UserManagedIdentity')]
+    [string]$ClientId,
+
+    [Parameter(ParameterSetName = 'Certificate')]
+    [string]$CertificateThumbprint,
+
+    [Parameter(Mandatory = $true, ParameterSetName = 'ClientSecret')]
+    [System.Management.Automation.PSCredential]
+    $ClientSecretCredential   
+ 
 )
 
 #region Support Functions
@@ -856,25 +943,25 @@ function Get-IntuneWindowsInformationProtectionPolicyAssignment {
 
 #region Module Installation
 
-# Module version configuration
-$script:GraphModuleVersion = "2.25.0"
-
 $requiredModules = @(
     "Microsoft.Graph.Authentication",
     "Microsoft.Graph.Beta.DeviceManagement",
     "Microsoft.Graph.Beta.Groups",
     "Microsoft.Graph.Beta.Devices.CorporateManagement",
-    "Microsoft.Graph.Beta.DeviceManagement.Enrollment"
+    "Microsoft.Graph.Beta.DeviceManagement.Enrollment"    
 )
 
-Write-Host "Checking required modules (version $script:GraphModuleVersion)..." -ForegroundColor Cyan
+Write-Host "Checking required modules..." -ForegroundColor Cyan
 $modulesNeedingInstall = @()
 
 foreach ($module in $requiredModules) {
-    try {
-        $existingModule = Get-Module -Name $module -ListAvailable | Where-Object { $_.Version -eq $script:GraphModuleVersion }
+    try {        
+        $existingModule = Get-Module -Name $module -ListAvailable
         if (-not $existingModule) {
             $modulesNeedingInstall += $module
+        }
+        else {
+            Write-Host "Module $module is already installed (Version: $($existingModule[0].Version))." -ForegroundColor Green
         }
     } catch {
         Write-Warning "Error checking module $module`: $_"
@@ -882,14 +969,14 @@ foreach ($module in $requiredModules) {
 }
 
 if ($modulesNeedingInstall.Count -gt 0) {
-    Write-Host "The following modules need to be installed (version $script:GraphModuleVersion): $($modulesNeedingInstall -join ', ')" -ForegroundColor Yellow
+    Write-Host "The following modules need to be installed: $($modulesNeedingInstall -join ', ')" -ForegroundColor Yellow
     $userConsent = Read-Host "Do you want to proceed with installing the required modules? (Y/N)"
     if ($userConsent -match '^[Yy]$') {
         Write-Host "Installing required modules..." -ForegroundColor Cyan
         foreach ($module in $modulesNeedingInstall) {
             try {
-                Write-Host "Installing $module version $script:GraphModuleVersion..." -ForegroundColor Yellow
-                Install-Module -Name $module -RequiredVersion $script:GraphModuleVersion -Force -AllowClobber -Scope CurrentUser -ErrorAction Stop
+                Write-Host "Installing $module..." -ForegroundColor Yellow
+                Install-Module -Name $module -Force -AllowClobber -Scope CurrentUser -ErrorAction Stop
                 Write-Host "Successfully installed $module" -ForegroundColor Green
             } catch {
                 Write-Error "Failed to install module $module. Error: $_"
@@ -902,30 +989,109 @@ if ($modulesNeedingInstall.Count -gt 0) {
     }
 }
 
-# Import all required modules with specific version
+# Import all required modules
 foreach ($module in $requiredModules) {
     try {
-        Import-Module -Name $module -RequiredVersion $script:GraphModuleVersion -Force -ErrorAction Stop
-        Write-Verbose "Successfully imported $module version $script:GraphModuleVersion"
+        # if module is not already loaded, import it
+        if (-not (Get-Module -Name $module)) {
+            Write-Host "Importing $module..." -ForegroundColor Yellow
+            Import-Module -Name $module -Force -ErrorAction Stop
+            write-host "Successfully imported $module" -ForegroundColor Green
+        } else {
+            Write-Host "$module is already loaded." -ForegroundColor Green
+            continue
+        }
     } catch {
         Write-Error "Failed to import module $module. Error: $_"
-        return
-    }
+        return    }
 }
 #endregion
 
 # Connect to Microsoft Graph if not already connected
 try {
     if (-not (Get-MgContext)) {
-        Write-Verbose "Connecting to Microsoft Graph..."
-        Connect-MgGraph -Scopes @(
-            "DeviceManagementConfiguration.Read.All",
-            "DeviceManagementApps.Read.All",
-            "DeviceManagementManagedDevices.Read.All",
-            "DeviceManagementServiceConfig.Read.All",
-            "Group.Read.All",
-            "Directory.Read.All"
-        )
+        Write-Host "Connecting to Microsoft Graph..." -ForegroundColor Yellow
+        
+        $connectParams = @{
+            NoWelcome = $true
+        }
+
+        switch ($AuthMethod) {
+            'Interactive' {
+                if ($TenantId) { $connectParams['TenantId'] = $TenantId }
+                Connect-MgGraph @connectParams -Scopes "DeviceManagementServiceConfig.Read.All","DeviceManagementConfiguration.Read.All", "DeviceManagementManagedDevices.Read.All", "DeviceManagementApps.Read.All", "Group.Read.All"
+            }
+            'Certificate' {
+                if (-not $CertificateThumbprint) {
+                    throw "CertificateThumbprint must be provided for certificate authentication. CertificatePath is not supported."
+                }
+
+                $connectParams += @{
+                    ClientId = $ClientId
+                    TenantId = $TenantId
+                    CertificateThumbprint = $CertificateThumbprint
+                }
+                Write-Verbose "Using certificate authentication (thumbprint only)"
+                Connect-MgGraph @connectParams
+            }
+            'ClientSecret' {
+                # Check if ClientSecretCredential is provided
+                if (-not($ClientSecretCredential -and $TenantId)) {
+                    throw "Both ClientSecretCredential object (which contains ClientID and ClientSecret) and TenantId must be provided for client secret authentication"
+                }
+                
+                $connectParams += @{
+                    TenantId = $TenantId
+                    ClientSecretCredential = $ClientSecretCredential
+                }
+                
+                Write-Verbose "Using client secret authentication with credentials"
+                Connect-MgGraph @connectParams
+            }
+            'UserManagedIdentity' {
+                $connectParams += @{
+                    Identity = $true
+                    TenantId = $TenantId
+                    ClientId = $ClientId
+                }
+                Write-Verbose "Using user-assigned managed identity authentication"
+                Connect-MgGraph @connectParams
+            }
+            'SystemManagedIdentity' {
+                $connectParams += @{
+                    Identity = $true
+                    TenantId = $TenantId
+                }
+                Write-Verbose "Using system-assigned managed identity authentication"
+                Connect-MgGraph @connectParams
+            }           
+        }
+
+        $context = Get-MgContext
+        if (-not $context) {
+            throw "Failed to establish Microsoft Graph connection"
+        }
+        
+        if ($context.ManagedIdentityId) {
+            Write-Host "Successfully connected to Microsoft Graph using Managed Identity: $($context.ManagedIdentityId)" -ForegroundColor Green
+        } elseif ($context.Account) {
+            Write-Host "Successfully connected to Microsoft Graph as: $($context.Account)" -ForegroundColor Green
+        } elseif ($context.AppName) {
+            Write-Host "Successfully connected to Microsoft Graph using Client ID: $($context.ClientId) and Application Name: $($context.AppName)" -ForegroundColor Green
+        } else {
+            Write-Host "Successfully connected to Microsoft Graph" -ForegroundColor Green
+        }
+                
+        Write-Host "Scopes: $($context.Scopes -join ', ')" -ForegroundColor Yellow
+    }
+    else {
+        if ($AuthMethod -eq 'UserManagedIdentity' -or $AuthMethod -eq 'SystemManagedIdentity') {
+            Write-Host "Already connected to Microsoft Graph as: $((Get-MgContext).ManagedIdentityId)" -ForegroundColor Green
+            write-host "Scope: $((Get-MgContext).Scopes)" -ForegroundColor Green
+        } else {
+            Write-Host "Already connected to Microsoft Graph as: $((Get-MgContext).Account)" -ForegroundColor Green
+            write-host "Scope: $((Get-MgContext).Scopes)" -ForegroundColor Green
+        }
     }
 } catch {
     Write-Error "Failed to connect to Microsoft Graph: $_"

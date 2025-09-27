@@ -10,7 +10,7 @@ Install-Script -Name Get-IntuneAssignments
 
 ## Requirements
 
-- PowerShell 7.1 or higher
+- PowerShell 7 or higher
 - Microsoft Graph PowerShell SDK modules (will be automatically installed if missing):
   - Microsoft.Graph.Authentication
   - Microsoft.Graph.Beta.DeviceManagement
@@ -20,12 +20,14 @@ Install-Script -Name Get-IntuneAssignments
 
 ## API Permissions
 
+
 The following Microsoft Graph API permissions are required:
 
 - DeviceManagementConfiguration.Read.All
 - DeviceManagementApps.Read.All
 - DeviceManagementManagedDevices.Read.All
 - DeviceManagementServiceConfig.Read.All
+- DeviceManagementScripts.Read.All
 - Group.Read.All
 - Directory.Read.All
 
@@ -33,18 +35,35 @@ These permissions will be requested automatically when connecting to Microsoft G
 
 ## Usage
 
+
 ```powershell
-# Get all assignments
+# Get all assignments (interactive authentication)
 Get-IntuneAssignments
 
-# Export assignments to CSV
+# Export assignments to CSV (interactive authentication)
 Get-IntuneAssignments -OutputFile "C:\temp\assignments.csv"
 
-# Get assignments for specific group
+# Get assignments for a specific group (interactive authentication)
 Get-IntuneAssignments -GroupName "Pilot Users"
 
-# Get assignments for a specific group and export to CSV
-Get-IntuneAssignments -GroupName "Pilot Users" -OutputFile "C:\temp\Pilot Users Assignments.csv"
+# Connect interactively to a specific tenant
+Get-IntuneAssignments -AuthMethod Interactive -TenantId "contoso.onmicrosoft.com"
+
+# Certificate authentication (thumbprint, app registration with certificate in store)
+Get-IntuneAssignments -AuthMethod Certificate -TenantId "contoso.onmicrosoft.com" -ClientId "12345678-1234-1234-1234-123456789012" -CertificateThumbprint "1234567890ABCDEF1234567890ABCDEF12345678"
+
+# Client secret authentication
+$credential = New-Object System.Management.Automation.PSCredential("12345678-1234-1234-1234-123456789012", (ConvertTo-SecureString "YourClientSecret" -AsPlainText -Force))
+Get-IntuneAssignments -AuthMethod ClientSecret -TenantId "contoso.onmicrosoft.com" -ClientSecretCredential $credential
+
+# User-assigned managed identity authentication
+Get-IntuneAssignments -AuthMethod UserManagedIdentity -TenantId "contoso.onmicrosoft.com" -ClientId "<user-assigned-managed-identity-client-id>"
+
+# System-assigned managed identity authentication
+Get-IntuneAssignments -AuthMethod SystemManagedIdentity -TenantId "contoso.onmicrosoft.com"
+
+# Group filtering and CSV export with certificate authentication
+Get-IntuneAssignments -AuthMethod Certificate -TenantId "contoso.onmicrosoft.com" -ClientId "12345678-1234-1234-1234-123456789012" -CertificateThumbprint "1234567890ABCDEF1234567890ABCDEF12345678" -GroupName "Pilot Users" -OutputFile "C:\temp\PilotUsersAssignments.csv"
 ```
 
 ## Features
@@ -72,6 +91,19 @@ The script returns objects with the following properties:
 - ProfileType: Type of configuration (e.g., Device Configuration, Compliance Policy)
 - IncludedGroups: Groups included in the assignment (with filter information if applicable)
 - ExcludedGroups: Groups excluded from the assignment
+
+
+## Authentication Methods
+
+Supported authentication methods:
+
+- **Interactive** (default): Prompts for user login interactively.
+- **Certificate**: Uses a certificate in the local certificate store, specified by thumbprint. Only the `-CertificateThumbprint` parameter is supported. `-CertificatePath` is not supported.
+- **ClientSecret**: Uses a client secret via a PSCredential object.
+- **UserManagedIdentity**: Uses a user-assigned managed identity.
+- **SystemManagedIdentity**: Uses a system-assigned managed identity.
+
+**Note:** For certificate authentication, the certificate must be installed in the local certificate store and accessible by thumbprint. The script does not support loading certificates from file paths.
 
 ## Contributing
 
