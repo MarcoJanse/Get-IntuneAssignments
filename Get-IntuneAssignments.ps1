@@ -2,7 +2,7 @@
 
 <#PSScriptInfo
 
-.VERSION 1.0.9
+.VERSION 1.0.10
 
 .GUID 3b9c9df5-3b5f-4c1a-9a6c-097be91fa292
 
@@ -98,29 +98,50 @@ Initial release - Get all Intune Configuration Profile assignments
     Username should be the ClientId, and Password should be the ClientSecret.
     This is the recommended way to use client secret authentication.
 
+
 .EXAMPLE
     Get-IntuneAssignments
-    Returns all Intune configuration assignments and displays them in the console.
+    Returns all Intune configuration assignments and displays them in the console using interactive authentication.
 
 .EXAMPLE
     Get-IntuneAssignments -OutputFile "C:\temp\assignments.csv"
-    Retrieves all assignments and exports them to the specified CSV file.
+    Retrieves all assignments using interactive authentication and exports them to the specified CSV file.
 
 .EXAMPLE
     Get-IntuneAssignments -GroupName "Pilot Users"
-    Returns assignments that include or exclude the specified group.
+    Returns assignments that include or exclude the specified group using interactive authentication.
 
 .EXAMPLE
+    Get-IntuneAssignments -AuthMethod Interactive -TenantId "contoso.onmicrosoft.com"
+    Connects interactively to a specific tenant.
+
+.EXAMPLE
+    # Certificate authentication (thumbprint, app registration with certificate in store)
+    Get-IntuneAssignments -AuthMethod Certificate -TenantId "contoso.onmicrosoft.com" -ClientId "12345678-1234-1234-1234-123456789012" -CertificateThumbprint "1234567890ABCDEF1234567890ABCDEF12345678"
+    Connects using certificate authentication with a certificate thumbprint.
+
+.EXAMPLE
+    # Client secret authentication
     $credential = New-Object System.Management.Automation.PSCredential("12345678-1234-1234-1234-123456789012", (ConvertTo-SecureString "YourClientSecret" -AsPlainText -Force))
     Get-IntuneAssignments -AuthMethod ClientSecret -TenantId "contoso.onmicrosoft.com" -ClientSecretCredential $credential
     Connects using client secret authentication with a PSCredential object.
 
 .EXAMPLE
-    Get-IntuneAssignments -AuthMethod Certificate -TenantId "contoso.onmicrosoft.com" -ClientId "12345678-1234-1234-1234-123456789012" -CertificateThumbprint "1234567890ABCDEF1234567890ABCDEF12345678"
-    Connects using certificate authentication with a certificate thumbprint.
+    # User-assigned managed identity authentication
+    Get-IntuneAssignments -AuthMethod UserManagedIdentity -TenantId "contoso.onmicrosoft.com" -ClientId "<user-assigned-managed-identity-client-id>"
+    Connects using a user-assigned managed identity.
 
-.NOTES
-    Version:        1.0.9
+.EXAMPLE
+    # System-assigned managed identity authentication
+    Get-IntuneAssignments -AuthMethod SystemManagedIdentity -TenantId "contoso.onmicrosoft.com"
+    Connects using a system-assigned managed identity.
+
+.EXAMPLE
+    # Group filtering and CSV export with certificate authentication
+    Get-IntuneAssignments -AuthMethod Certificate -TenantId "contoso.onmicrosoft.com" -ClientId "12345678-1234-1234-1234-123456789012" -CertificateThumbprint "1234567890ABCDEF1234567890ABCDEF12345678" -GroupName "Pilot Users" -OutputFile "C:\temp\PilotUsersAssignments.csv"
+    Retrieves assignments for a specific group using certificate authentication and exports to CSV.
+
+    Version:        1.0.10
     Author:         Amir Joseph Sayes
     Company:        amirsayes.co.uk
     Creation Date:  2025-04-30
