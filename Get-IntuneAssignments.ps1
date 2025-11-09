@@ -2,7 +2,7 @@
 
 <#PSScriptInfo
 
-.VERSION 1.0.10
+.VERSION 1.0.11
 
 .GUID 3b9c9df5-3b5f-4c1a-9a6c-097be91fa292
 
@@ -32,8 +32,15 @@ Microsoft.Graph.Beta.DeviceManagement.Enrollment
 .EXTERNALSCRIPTDEPENDENCIES
 
 .RELEASENOTES
+v1.0.10 - Added support for Windows Update Policies:
+        - Windows Quality Update Profiles
+        - Windows Feature Update Profiles
+        - Windows Update Rings
+        - Windows Driver Update Profiles
 Initial release - Get all Intune Configuration Profile assignments
-
+Improvements to app assignment retrieval and filtering
+Fixed issue with app assignments not returning excluded groups
+Added support for Windows Update Policies
 #>
 
 <#
@@ -54,6 +61,11 @@ Initial release - Get all Intune Configuration Profile assignments
     - Remediation Scripts
     - Device Management Scripts
     - Autopilot Profiles (v1)
+    - Windows Update Policies:
+      * Windows Quality Update Profiles
+      * Windows Feature Update Profiles
+      * Windows Update Rings
+      * Windows Driver Update Profiles
     
     Required Microsoft Graph API permissions:
     - DeviceManagementConfiguration.Read.All
@@ -787,6 +799,211 @@ function Get-IntuneRemediationScriptAssignment {
     }
 }
 
+function Get-IntuneWindowsUpdateAssignment {
+    param (
+        [Parameter(Mandatory = $false)]
+        [string]$displayName,
+        [Parameter(Mandatory = $false)]
+        [string]$groupId
+    )
+
+    # Windows Quality Update Profiles
+    if ($displayName) {
+        $QualityUpdateProfile = Get-MgBetaDeviceManagementWindowsQualityUpdateProfile -Filter "displayName eq '$displayName'" -ExpandProperty "assignments"
+    } else {
+        $QualityUpdateProfile = Get-MgBetaDeviceManagementWindowsQualityUpdateProfile -All -ExpandProperty "assignments"
+    }
+
+    foreach ($profile in $QualityUpdateProfile) {
+        $includedGroups = @()
+        $excludedGroups = @()
+        $FilterName = @()
+
+        $assignments = $profile.Assignments
+        foreach ($assignment in $assignments) {
+            if ($groupId -and $assignment.Target.AdditionalProperties.groupId -ne $groupId) {
+                continue
+            }
+
+            if ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.groupAssignmentTarget') {
+                $CurrentincludedGroup = (Get-MgbetaGroup -GroupId $($assignment.Target.AdditionalProperties.groupId)).DisplayName
+                if ($($assignment.Target.DeviceAndAppManagementAssignmentFilterId) -and $assignment.Target.DeviceAndAppManagementAssignmentFilterId -ne [guid]::Empty) {
+                    $FilterName = " | Filter: " + (Get-MgBetaDeviceManagementAssignmentFilter -DeviceAndAppManagementAssignmentFilterId $($assignment.Target.DeviceAndAppManagementAssignmentFilterId)).DisplayName
+                } else {
+                    $FilterName = " | No Filter"
+                }
+                $includedGroups += $CurrentincludedGroup + $FilterName
+            } elseif ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.allDevicesAssignmentTarget') {
+                $CurrentincludedGroup = "All Devices"
+                if ($($assignment.Target.DeviceAndAppManagementAssignmentFilterId) -and $assignment.Target.DeviceAndAppManagementAssignmentFilterId -ne [guid]::Empty) {
+                    $FilterName = " | Filter: " + (Get-MgBetaDeviceManagementAssignmentFilter -DeviceAndAppManagementAssignmentFilterId $($assignment.Target.DeviceAndAppManagementAssignmentFilterId)).DisplayName
+                } else {
+                    $FilterName = " | No Filter"
+                }
+                $includedGroups += $CurrentincludedGroup + $FilterName
+            } elseif ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.exclusionGroupAssignmentTarget') {
+                $excludedGroups += (Get-MgbetaGroup -GroupId $($assignment.Target.AdditionalProperties.groupId)).DisplayName
+            }
+        }
+
+        if ($includedGroups.Count -gt 0 -or $excludedGroups.Count -gt 0) {
+            [PSCustomObject]@{
+                DisplayName = $profile.DisplayName
+                ProfileType = "Windows Quality Update Profile"
+                IncludedGroups = $includedGroups
+                ExcludedGroups = $excludedGroups
+            }
+        }
+    }
+
+    # Windows Feature Update Profiles
+    if ($displayName) {
+        $FeatureUpdateProfile = Get-MgBetaDeviceManagementWindowsFeatureUpdateProfile -Filter "displayName eq '$displayName'" -ExpandProperty "assignments"
+    } else {
+        $FeatureUpdateProfile = Get-MgBetaDeviceManagementWindowsFeatureUpdateProfile -All -ExpandProperty "assignments"
+    }
+
+    foreach ($profile in $FeatureUpdateProfile) {
+        $includedGroups = @()
+        $excludedGroups = @()
+        $FilterName = @()
+
+        $assignments = $profile.Assignments
+        foreach ($assignment in $assignments) {
+            if ($groupId -and $assignment.Target.AdditionalProperties.groupId -ne $groupId) {
+                continue
+            }
+
+            if ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.groupAssignmentTarget') {
+                $CurrentincludedGroup = (Get-MgbetaGroup -GroupId $($assignment.Target.AdditionalProperties.groupId)).DisplayName
+                if ($($assignment.Target.DeviceAndAppManagementAssignmentFilterId) -and $assignment.Target.DeviceAndAppManagementAssignmentFilterId -ne [guid]::Empty) {
+                    $FilterName = " | Filter: " + (Get-MgBetaDeviceManagementAssignmentFilter -DeviceAndAppManagementAssignmentFilterId $($assignment.Target.DeviceAndAppManagementAssignmentFilterId)).DisplayName
+                } else {
+                    $FilterName = " | No Filter"
+                }
+                $includedGroups += $CurrentincludedGroup + $FilterName
+            } elseif ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.allDevicesAssignmentTarget') {
+                $CurrentincludedGroup = "All Devices"
+                if ($($assignment.Target.DeviceAndAppManagementAssignmentFilterId) -and $assignment.Target.DeviceAndAppManagementAssignmentFilterId -ne [guid]::Empty) {
+                    $FilterName = " | Filter: " + (Get-MgBetaDeviceManagementAssignmentFilter -DeviceAndAppManagementAssignmentFilterId $($assignment.Target.DeviceAndAppManagementAssignmentFilterId)).DisplayName
+                } else {
+                    $FilterName = " | No Filter"
+                }
+                $includedGroups += $CurrentincludedGroup + $FilterName
+            } elseif ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.exclusionGroupAssignmentTarget') {
+                $excludedGroups += (Get-MgbetaGroup -GroupId $($assignment.Target.AdditionalProperties.groupId)).DisplayName
+            }
+        }
+
+        if ($includedGroups.Count -gt 0 -or $excludedGroups.Count -gt 0) {
+            [PSCustomObject]@{
+                DisplayName = $profile.DisplayName
+                ProfileType = "Windows Feature Update Profile"
+                IncludedGroups = $includedGroups
+                ExcludedGroups = $excludedGroups
+            }
+        }
+    }
+
+    # Windows Update Ring Settings (direct Graph call)
+    $uri = "https://graph.microsoft.com/beta/deviceManagement/windowsQualityUpdatePolicies?`$expand=assignments"
+    try {
+        $UpdateRings = Invoke-MgGraphRequest -Uri $uri -Method Get -Headers @{ConsistencyLevel = "eventual"}
+        
+        foreach ($ring in $UpdateRings.value) {
+            $includedGroups = @()
+            $excludedGroups = @()
+            $FilterName = @()
+
+            foreach ($assignment in $ring.assignments) {
+                if ($groupId -and $assignment.target.groupId -ne $groupId) {
+                    continue
+                }
+
+                if ($assignment.target.'@odata.type' -eq '#microsoft.graph.groupAssignmentTarget') {
+                    $CurrentincludedGroup = (Get-MgbetaGroup -GroupId $($assignment.target.groupId)).DisplayName
+                    if ($($assignment.target.deviceAndAppManagementAssignmentFilterId) -and $assignment.target.deviceAndAppManagementAssignmentFilterId -ne [guid]::Empty) {
+                        $FilterName = " | Filter: " + (Get-MgBetaDeviceManagementAssignmentFilter -DeviceAndAppManagementAssignmentFilterId $($assignment.target.deviceAndAppManagementAssignmentFilterId)).DisplayName
+                    } else {
+                        $FilterName = " | No Filter"
+                    }
+                    $includedGroups += $CurrentincludedGroup + $FilterName
+                } elseif ($assignment.target.'@odata.type' -eq '#microsoft.graph.allDevicesAssignmentTarget') {
+                    $CurrentincludedGroup = "All Devices"
+                    if ($($assignment.target.deviceAndAppManagementAssignmentFilterId) -and $assignment.target.deviceAndAppManagementAssignmentFilterId -ne [guid]::Empty) {
+                        $FilterName = " | Filter: " + (Get-MgBetaDeviceManagementAssignmentFilter -DeviceAndAppManagementAssignmentFilterId $($assignment.target.deviceAndAppManagementAssignmentFilterId)).DisplayName
+                    } else {
+                        $FilterName = " | No Filter"
+                    }
+                    $includedGroups += $CurrentincludedGroup + $FilterName
+                } elseif ($assignment.target.'@odata.type' -eq '#microsoft.graph.exclusionGroupAssignmentTarget') {
+                    $excludedGroups += (Get-MgbetaGroup -GroupId $($assignment.target.groupId)).DisplayName
+                }
+            }
+
+            if ($includedGroups.Count -gt 0 -or $excludedGroups.Count -gt 0) {
+                [PSCustomObject]@{
+                    DisplayName = $ring.displayName
+                    ProfileType = "Windows Update Ring"
+                    IncludedGroups = $includedGroups
+                    ExcludedGroups = $excludedGroups
+                }
+            }
+        }
+    } catch {
+        Write-Warning "Failed to retrieve Windows Update Ring assignments: $_"
+    }
+
+    # Windows Driver Update Profiles (direct Graph call)
+    $uri = "https://graph.microsoft.com/beta/deviceManagement/windowsDriverUpdateProfiles?`$expand=assignments"
+    try {
+        $DriverUpdateProfiles = Invoke-MgGraphRequest -Uri $uri -Method Get -Headers @{ConsistencyLevel = "eventual"}
+        
+        foreach ($profile in $DriverUpdateProfiles ) {
+            $includedGroups = @()
+            $excludedGroups = @()
+            $FilterName = @()
+
+            foreach ($assignment in $profile.assignments) {
+                if ($groupId -and $assignment.target.groupId -ne $groupId) {
+                    continue
+                }
+
+                if ($assignment.target.'@odata.type' -eq '#microsoft.graph.groupAssignmentTarget') {
+                    $CurrentincludedGroup = (Get-MgbetaGroup -GroupId $($assignment.target.groupId)).DisplayName
+                    if ($($assignment.target.deviceAndAppManagementAssignmentFilterId) -and $assignment.target.deviceAndAppManagementAssignmentFilterId -ne [guid]::Empty) {
+                        $FilterName = " | Filter: " + (Get-MgBetaDeviceManagementAssignmentFilter -DeviceAndAppManagementAssignmentFilterId $($assignment.target.deviceAndAppManagementAssignmentFilterId)).DisplayName
+                    } else {
+                        $FilterName = " | No Filter"
+                    }
+                    $includedGroups += $CurrentincludedGroup + $FilterName
+                } elseif ($assignment.target.'@odata.type' -eq '#microsoft.graph.allDevicesAssignmentTarget') {
+                    $CurrentincludedGroup = "All Devices"
+                    if ($($assignment.target.deviceAndAppManagementAssignmentFilterId) -and $assignment.target.deviceAndAppManagementAssignmentFilterId -ne [guid]::Empty) {
+                        $FilterName = " | Filter: " + (Get-MgBetaDeviceManagementAssignmentFilter -DeviceAndAppManagementAssignmentFilterId $($assignment.target.deviceAndAppManagementAssignmentFilterId)).DisplayName
+                    } else {
+                        $FilterName = " | No Filter"
+                    }
+                    $includedGroups += $CurrentincludedGroup + $FilterName
+                } elseif ($assignment.target.'@odata.type' -eq '#microsoft.graph.exclusionGroupAssignmentTarget') {
+                    $excludedGroups += (Get-MgbetaGroup -GroupId $($assignment.target.groupId)).DisplayName
+                }
+            }
+
+            if ($includedGroups.Count -gt 0 -or $excludedGroups.Count -gt 0) {
+                [PSCustomObject]@{
+                    DisplayName = $profile.displayName
+                    ProfileType = "Windows Driver Update Profile"
+                    IncludedGroups = $includedGroups
+                    ExcludedGroups = $excludedGroups
+                }
+            }
+        }
+    } catch {
+        Write-Warning "Failed to retrieve Windows Driver Update Profile assignments: $_"
+    }
+}
+
 function Get-IntuneAutopilotProfileAssignment {
     param (
         [Parameter(Mandatory = $false)]
@@ -1143,7 +1360,8 @@ $processSteps = @(
     @{ Name = "Remediation Scripts"; Function = "Get-IntuneRemediationScriptAssignment" },
     @{ Name = "Autopilot Profiles"; Function = "Get-IntuneAutopilotProfileAssignment" },
     @{ Name = "Device Management Scripts"; Function = "Get-IntuneDeviceManagementScriptAssignment" },
-    @{ Name = "Windows Information Protection Policies"; Function = "Get-IntuneWindowsInformationProtectionPolicyAssignment" }
+    @{ Name = "Windows Information Protection Policies"; Function = "Get-IntuneWindowsInformationProtectionPolicyAssignment" },
+    @{ Name = "Windows Update Policies"; Function = "Get-IntuneWindowsUpdateAssignment" }
 )
 
 foreach ($step in $processSteps) {
