@@ -2,7 +2,7 @@
 
 <#PSScriptInfo
 
-.VERSION 1.0.11
+.VERSION 1.0.12
 
 .GUID 3b9c9df5-3b5f-4c1a-9a6c-097be91fa292
 
@@ -32,15 +32,24 @@ Microsoft.Graph.Beta.DeviceManagement.Enrollment
 .EXTERNALSCRIPTDEPENDENCIES
 
 .RELEASENOTES
-v1.0.10 - Added support for Windows Update Policies:
-        - Windows Quality Update Profiles
-        - Windows Feature Update Profiles
-        - Windows Update Rings
-        - Windows Driver Update Profiles
-Initial release - Get all Intune Configuration Profile assignments
-Improvements to app assignment retrieval and filtering
-Fixed issue with app assignments not returning excluded groups
-Added support for Windows Update Policies
+v1.0.12 - November 2025:
+        - Added support for Device Enrollment Configurations
+        - Fixed Out-GridView compatibility - script now returns PowerShell objects instead of formatting objects
+        - Results can now be used with Out-GridView, Export-Csv, and other PowerShell cmdlets
+v1.0.11 - 2025:
+        - Added support for Windows Update Policies (Quality Updates, Feature Updates, Update Rings, Driver Updates)
+v1.0.10 - 2025:
+        - Added support for certificate-based authentication (thumbprint)
+        - Added support for client secret authentication
+        - Added support for managed identity authentication (user-assigned and system-assigned)
+v1.0.9 - 2025:
+        - Fixed bug with group names containing spaces
+        - Added logic to handle multiple groups matching search criteria
+v1.0.7 - 2025:
+        - Enhanced function capabilities
+v1.0.1 - Initial Release:
+        - Get all Intune Configuration Profile assignments
+        - Support for Device Configuration, Compliance Policies, Security Baselines, Apps, and more
 #>
 
 <#
@@ -61,6 +70,7 @@ Added support for Windows Update Policies
     - Remediation Scripts
     - Device Management Scripts
     - Autopilot Profiles (v1)
+    - Device Enrollment Configurations
     - Windows Update Policies:
       * Windows Quality Update Profiles
       * Windows Feature Update Profiles
@@ -124,6 +134,16 @@ Added support for Windows Update Policies
     Returns assignments that include or exclude the specified group using interactive authentication.
 
 .EXAMPLE
+    $assignments = Get-IntuneAssignments
+    $assignments | Out-GridView
+    Retrieves all assignments and displays them in an interactive grid view for filtering and sorting.
+
+.EXAMPLE
+    $assignments = Get-IntuneAssignments
+    $assignments | Where-Object { $_.ProfileType -like "*enrollment*" } | Out-GridView
+    Retrieves all assignments, filters for enrollment configurations, and displays them in grid view.
+
+.EXAMPLE
     Get-IntuneAssignments -AuthMethod Interactive -TenantId "contoso.onmicrosoft.com"
     Connects interactively to a specific tenant.
 
@@ -153,10 +173,11 @@ Added support for Windows Update Policies
     Get-IntuneAssignments -AuthMethod Certificate -TenantId "contoso.onmicrosoft.com" -ClientId "12345678-1234-1234-1234-123456789012" -CertificateThumbprint "1234567890ABCDEF1234567890ABCDEF12345678" -GroupName "Pilot Users" -OutputFile "C:\temp\PilotUsersAssignments.csv"
     Retrieves assignments for a specific group using certificate authentication and exports to CSV.
 
-    Version:        1.0.10
+    Version:        1.0.12
     Author:         Amir Joseph Sayes
     Company:        amirsayes.co.uk
     Creation Date:  2025-04-30
+    Last Updated:   2025-11-09
     Requirements:   
     - PowerShell 7 or higher
     - Microsoft Graph PowerShell SDK modules
@@ -1156,6 +1177,73 @@ function Get-IntuneWindowsInformationProtectionPolicyAssignment {
         }
     }
 }
+
+function Get-IntuneDeviceEnrollmentConfigurationAssignment {
+    param (
+        [Parameter(Mandatory = $false)]
+        [string]$displayName,
+        [Parameter(Mandatory = $false)]
+        [string]$groupId
+    )
+
+    if ($displayName) {
+        $EnrollmentConfigurations = Get-MgBetaDeviceManagementDeviceEnrollmentConfiguration -Filter "displayName eq '$displayName'" -ExpandProperty "assignments"
+    } else {
+        $EnrollmentConfigurations = Get-MgBetaDeviceManagementDeviceEnrollmentConfiguration -All -ExpandProperty "assignments"
+    }
+
+    foreach ($config in $EnrollmentConfigurations) {
+        $includedGroups = @()
+        $excludedGroups = @()
+        $FilterName = @()
+
+        $assignments = $config.Assignments
+        foreach ($assignment in $assignments) {
+            # Skip if we're looking for a specific group and this isn't it
+            if ($groupId -and $assignment.Target.AdditionalProperties.groupId -ne $groupId) {
+                continue
+            }
+
+            if ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.groupAssignmentTarget') {
+                $CurrentincludedGroup = (Get-MgbetaGroup -GroupId $($assignment.Target.AdditionalProperties.groupId)).DisplayName
+                if ($($assignment.Target.DeviceAndAppManagementAssignmentFilterId) -and $assignment.Target.DeviceAndAppManagementAssignmentFilterId -ne [guid]::Empty) {
+                    $FilterName = " | Filter: " + (Get-MgBetaDeviceManagementAssignmentFilter -DeviceAndAppManagementAssignmentFilterId $($assignment.Target.DeviceAndAppManagementAssignmentFilterId)).DisplayName
+                } else {
+                    $FilterName = " | No Filter"
+                }
+                $includedGroups += $CurrentincludedGroup + $FilterName
+            } elseif ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.allDevicesAssignmentTarget') {
+                $CurrentincludedGroup = "All Devices"
+                if ($($assignment.Target.DeviceAndAppManagementAssignmentFilterId) -and $assignment.Target.DeviceAndAppManagementAssignmentFilterId -ne [guid]::Empty) {
+                    $FilterName = " | Filter: " + (Get-MgBetaDeviceManagementAssignmentFilter -DeviceAndAppManagementAssignmentFilterId $($assignment.Target.DeviceAndAppManagementAssignmentFilterId)).DisplayName
+                } else {
+                    $FilterName = " | No Filter"
+                }
+                $includedGroups += $CurrentincludedGroup + $FilterName
+            } elseif ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.allLicensedUsersAssignmentTarget') {
+                $CurrentincludedGroup = "All Users"
+                if ($($assignment.Target.DeviceAndAppManagementAssignmentFilterId) -and $assignment.Target.DeviceAndAppManagementAssignmentFilterId -ne [guid]::Empty) {
+                    $FilterName = " | Filter: " + (Get-MgBetaDeviceManagementAssignmentFilter -DeviceAndAppManagementAssignmentFilterId $($assignment.Target.DeviceAndAppManagementAssignmentFilterId)).DisplayName
+                } else {
+                    $FilterName = " | No Filter"
+                }
+                $includedGroups += $CurrentincludedGroup + $FilterName
+            } elseif ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.exclusionGroupAssignmentTarget') {
+                $excludedGroups += (Get-MgbetaGroup -GroupId $($assignment.Target.AdditionalProperties.groupId)).DisplayName
+            }
+        }
+
+        # Only return results if we found assignments (and they match our group filter if specified)
+        if ($includedGroups.Count -gt 0 -or $excludedGroups.Count -gt 0) {
+            [PSCustomObject]@{
+                DisplayName = $config.DisplayName
+                ProfileType = $config.AdditionalProperties.'@odata.type' -replace '^#microsoft\.graph\.', ''
+                IncludedGroups = $includedGroups
+                ExcludedGroups = $excludedGroups
+            }
+        }
+    }
+}
 #endregion
 
 #region Module Installation
@@ -1361,6 +1449,7 @@ $processSteps = @(
     @{ Name = "Autopilot Profiles"; Function = "Get-IntuneAutopilotProfileAssignment" },
     @{ Name = "Device Management Scripts"; Function = "Get-IntuneDeviceManagementScriptAssignment" },
     @{ Name = "Windows Information Protection Policies"; Function = "Get-IntuneWindowsInformationProtectionPolicyAssignment" },
+    @{ Name = "Device Enrollment Configurations"; Function = "Get-IntuneDeviceEnrollmentConfigurationAssignment" },
     @{ Name = "Windows Update Policies"; Function = "Get-IntuneWindowsUpdateAssignment" }
 )
 
