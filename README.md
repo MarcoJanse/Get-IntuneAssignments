@@ -109,7 +109,7 @@ Get-IntuneAssignments -AuthMethod Certificate -TenantId "contoso.onmicrosoft.com
   - Intune Role Assignments
     - Shows administrative role assignments and their resource scopes
     - Displays both group and user assignments
-  -Cloud PC Role Assignments
+  - Cloud PC Role Assignments
     - Windows 365 Cloud PC administrative role assignments
     - Includes role definition names and directory scopes
 - Shows included and excluded groups for each assignment
