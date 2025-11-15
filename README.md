@@ -2,15 +2,6 @@
 
 PowerShell script to retrieve all Intune Configuration Profile assignments, including Device Configuration, Compliance Policies, Security Baselines, Device Enrollment Configurations, and more.
 
-## Version 1.0.12 - November 2025
-
-**New Features:**
-- ✨ Added support for Device Enrollment Configurations Assignments
-- ✨ Added support for Intune Role Assignments and Cloud PC Role Assignments
-- ✨ Fixed Out-GridView compatibility - script now returns PowerShell objects instead of formatting objects
-- ✨ Results can now be properly used with `Out-GridView`, `Export-Csv`, and other PowerShell cmdlets
-- ✨ Improved output handling for better console display
-
 ## Installation
 
 ```powershell
