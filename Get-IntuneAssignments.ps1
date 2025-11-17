@@ -2,7 +2,7 @@
 
 <#PSScriptInfo
 
-.VERSION 1.0.12
+.VERSION 1.0.13
 
 .GUID 3b9c9df5-3b5f-4c1a-9a6c-097be91fa292
 
@@ -32,6 +32,9 @@ Microsoft.Graph.Beta.DeviceManagement.Enrollment
 .EXTERNALSCRIPTDEPENDENCIES
 
 .RELEASENOTES
+v1.0.13 - November 2025:
+        - Fixed: Duplicate output when running script without parameters
+        - Fixed: SystemManagedIdentity authentication parameter validation error
 v1.0.12 - November 2025:
         - Added support for Intune Role Assignments
         - Added support for Cloud PC Role Assignments
@@ -197,7 +200,9 @@ param (
     
     [Parameter(Mandatory = $false)]
     [ValidateNotNullOrEmpty()]
-    [string]$GroupName,    # Authentication Parameters    
+    [string]$GroupName,
+
+    # Authentication Parameters    
     [Parameter(Mandatory = $false)]
     [ValidateSet('Interactive', 'Certificate', 'ClientSecret', 'UserManagedIdentity', 'SystemManagedIdentity')]
     [string]$AuthMethod = 'Interactive',
@@ -206,7 +211,7 @@ param (
     [Parameter(Mandatory = $true, ParameterSetName = 'Certificate')]
     [Parameter(Mandatory = $true, ParameterSetName = 'ClientSecret')]
     [Parameter(Mandatory = $true, ParameterSetName = 'UserManagedIdentity')]
-    [Parameter(Mandatory = $true, ParameterSetName = 'Credential')]
+    [Parameter(Mandatory = $false, ParameterSetName = 'SystemManagedIdentity')]
     [string]$TenantId,
 
     [Parameter(Mandatory = $true, ParameterSetName = 'Certificate')]
@@ -1562,7 +1567,9 @@ try {
             'SystemManagedIdentity' {
                 $connectParams += @{
                     Identity = $true
-                    TenantId = $TenantId
+                }
+                if ($TenantId) {
+                    $connectParams['TenantId'] = $TenantId
                 }
                 Write-Verbose "Using system-assigned managed identity authentication"
                 Connect-MgGraph @connectParams
@@ -1672,7 +1679,7 @@ if ($finalResults.Count -gt 0) {
     
     # Display results in console with all columns visible
     Write-Host "`nPolicy Assignments:" -ForegroundColor Green
-    $outputData | Format-Table -Wrap -AutoSize | Out-Host
+    #$outputData | Format-Table -Wrap -AutoSize | Out-Host
 
     Write-Host "`nFound $($finalResults.Count) policies with assignments" -ForegroundColor Green
     Write-Host "If not all columns are visible, use -OutputFile to export to CSV" -ForegroundColor Yellow
