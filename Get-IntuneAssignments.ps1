@@ -2,7 +2,7 @@
 
 <#PSScriptInfo
 
-.VERSION 1.0.12
+.VERSION 1.0.13
 
 .GUID 3b9c9df5-3b5f-4c1a-9a6c-097be91fa292
 
@@ -32,6 +32,9 @@ Microsoft.Graph.Beta.DeviceManagement.Enrollment
 .EXTERNALSCRIPTDEPENDENCIES
 
 .RELEASENOTES
+v1.0.13 - November 2025:
+        - Fixed: Duplicate output when running script without parameters
+        - Fixed: SystemManagedIdentity authentication parameter validation error
 v1.0.12 - November 2025:
         - Added support for Intune Role Assignments
         - Added support for Cloud PC Role Assignments
