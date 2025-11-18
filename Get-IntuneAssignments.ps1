@@ -2,7 +2,7 @@
 
 <#PSScriptInfo
 
-.VERSION 1.0.13
+.VERSION 1.0.14
 
 .GUID 3b9c9df5-3b5f-4c1a-9a6c-097be91fa292
 
@@ -32,6 +32,10 @@ Microsoft.Graph.Beta.DeviceManagement.Enrollment
 .EXTERNALSCRIPTDEPENDENCIES
 
 .RELEASENOTES
+v1.0.14 - November 2025:
+        - Fixed: Added missing DeviceManagementRBAC.Read.All permission for Intune Role Assignments
+        - Fixed: Removed unnecessary Directory.Read.All permission from documentation
+        - Improved: Cleaned up PSScriptInfo metadata following PowerShell best practices
 v1.0.13 - November 2025:
         - Fixed: Duplicate output when running script without parameters
         - Fixed: SystemManagedIdentity authentication parameter validation error
@@ -90,9 +94,8 @@ v1.0.1 - Initial Release:
     - DeviceManagementApps.Read.All
     - DeviceManagementManagedDevices.Read.All
     - DeviceManagementServiceConfig.Read.All
-    - DeviceManagementScripts.Read.All
     - Group.Read.All
-    - Directory.Read.All
+    - DeviceManagementRBAC.Read.All (for Intune Role Assignments)
     - CloudPC.Read.All (for Cloud PC Role Assignments)
 
     - Shows included and excluded groups for each assignment
@@ -182,14 +185,13 @@ v1.0.1 - Initial Release:
     Get-IntuneAssignments -AuthMethod Certificate -TenantId "contoso.onmicrosoft.com" -ClientId "12345678-1234-1234-1234-123456789012" -CertificateThumbprint "1234567890ABCDEF1234567890ABCDEF12345678" -GroupName "Pilot Users" -OutputFile "C:\temp\PilotUsersAssignments.csv"
     Retrieves assignments for a specific group using certificate authentication and exports to CSV.
 
-    Version:        1.0.12
-    Author:         Amir Joseph Sayes
-    Company:        amirsayes.co.uk
-    Creation Date:  2025-04-30
-    Last Updated:   2025-11-09
+.NOTES
     Requirements:   
     - PowerShell 7 or higher
-    - Microsoft Graph PowerShell SDK modules
+    - Microsoft Graph PowerShell SDK modules (automatically installed if missing)
+    
+    For the latest version and updates, visit:
+    https://github.com/amirjs/Get-IntuneAssignments
 #>
 
 [CmdletBinding(DefaultParameterSetName = 'Interactive')]
@@ -1526,7 +1528,7 @@ try {
         switch ($AuthMethod) {
             'Interactive' {
                 if ($TenantId) { $connectParams['TenantId'] = $TenantId }
-                Connect-MgGraph @connectParams -Scopes "DeviceManagementServiceConfig.Read.All","DeviceManagementConfiguration.Read.All", "DeviceManagementManagedDevices.Read.All", "DeviceManagementApps.Read.All", "Group.Read.All", "CloudPC.Read.All"
+                Connect-MgGraph @connectParams -Scopes "DeviceManagementServiceConfig.Read.All","DeviceManagementConfiguration.Read.All", "DeviceManagementManagedDevices.Read.All", "DeviceManagementApps.Read.All", "Group.Read.All", "DeviceManagementRBAC.Read.All", "CloudPC.Read.All"
             }
             'Certificate' {
                 if (-not $CertificateThumbprint) {
