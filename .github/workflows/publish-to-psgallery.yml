@@ -8,6 +8,7 @@ on:
 jobs:
   publish:
     runs-on: windows-latest
+    if: github.event.release.target_commitish == 'main' || github.event.release.target_commitish == 'refs/heads/main'
     
     steps:
     - name: Checkout code
