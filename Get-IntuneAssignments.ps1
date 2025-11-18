@@ -2,7 +2,7 @@
 
 <#PSScriptInfo
 
-.VERSION 1.0.13
+.VERSION 1.0.14
 
 .GUID 3b9c9df5-3b5f-4c1a-9a6c-097be91fa292
 
@@ -32,6 +32,10 @@ Microsoft.Graph.Beta.DeviceManagement.Enrollment
 .EXTERNALSCRIPTDEPENDENCIES
 
 .RELEASENOTES
+v1.0.14 - November 2025:
+        - Fixed: Added missing DeviceManagementRBAC.Read.All permission for Intune Role Assignments
+        - Fixed: Removed unnecessary Directory.Read.All permission from documentation
+        - Improved: Cleaned up PSScriptInfo metadata following PowerShell best practices
 v1.0.13 - November 2025:
         - Fixed: Duplicate output when running script without parameters
         - Fixed: SystemManagedIdentity authentication parameter validation error
@@ -90,9 +94,8 @@ v1.0.1 - Initial Release:
     - DeviceManagementApps.Read.All
     - DeviceManagementManagedDevices.Read.All
     - DeviceManagementServiceConfig.Read.All
-    - DeviceManagementScripts.Read.All
     - Group.Read.All
-    - Directory.Read.All
+    - DeviceManagementRBAC.Read.All (for Intune Role Assignments)
     - CloudPC.Read.All (for Cloud PC Role Assignments)
 
     - Shows included and excluded groups for each assignment
@@ -1525,7 +1528,7 @@ try {
         switch ($AuthMethod) {
             'Interactive' {
                 if ($TenantId) { $connectParams['TenantId'] = $TenantId }
-                Connect-MgGraph @connectParams -Scopes "DeviceManagementServiceConfig.Read.All","DeviceManagementConfiguration.Read.All", "DeviceManagementManagedDevices.Read.All", "DeviceManagementApps.Read.All", "Group.Read.All", "CloudPC.Read.All"
+                Connect-MgGraph @connectParams -Scopes "DeviceManagementServiceConfig.Read.All","DeviceManagementConfiguration.Read.All", "DeviceManagementManagedDevices.Read.All", "DeviceManagementApps.Read.All", "Group.Read.All", "DeviceManagementRBAC.Read.All", "CloudPC.Read.All"
             }
             'Certificate' {
                 if (-not $CertificateThumbprint) {
