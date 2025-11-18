@@ -1,0 +1,49 @@
+name: Publish to PowerShell Gallery
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:  # Allows manual trigger
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Validate version matches tag
+      shell: pwsh
+      run: |
+        $scriptVersion = (Get-Content .\Get-IntuneAssignments.ps1 | Select-String "^.VERSION (.+)$").Matches.Groups[1].Value.Trim()
+        $tagVersion = "${{ github.ref_name }}" -replace '^v', ''
+        
+        Write-Host "Script version: $scriptVersion"
+        Write-Host "Tag version: $tagVersion"
+        
+        if ($scriptVersion -ne $tagVersion) {
+          Write-Error "Version mismatch! Script: $scriptVersion, Tag: $tagVersion"
+          exit 1
+        }
+        Write-Host "✅ Version validation passed"
+    
+    - name: Publish to PowerShell Gallery
+      shell: pwsh
+      env:
+        PSGALLERY_API_KEY: ${{ secrets.PSGALLERY_API_KEY }}
+      run: |
+        Write-Host "Publishing Get-IntuneAssignments to PowerShell Gallery..."
+        Publish-Script -Path ".\Get-IntuneAssignments.ps1" -NuGetApiKey $env:PSGALLERY_API_KEY -Verbose
+        Write-Host "✅ Successfully published to PowerShell Gallery"
+    
+    - name: Verify publication
+      shell: pwsh
+      run: |
+        Start-Sleep -Seconds 30  # Wait for PSGallery to index
+        $published = Find-Script -Name Get-IntuneAssignments -ErrorAction SilentlyContinue
+        if ($published) {
+          Write-Host "✅ Verified on PSGallery: Version $($published.Version)"
+        } else {
+          Write-Warning "Could not verify publication immediately (may take a few minutes to index)"
+        }
