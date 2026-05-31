@@ -2,7 +2,7 @@
 
 <#PSScriptInfo
 
-.VERSION 1.0.14
+.VERSION 1.0.15
 
 .GUID 3b9c9df5-3b5f-4c1a-9a6c-097be91fa292
 
@@ -32,6 +32,14 @@ Microsoft.Graph.Beta.DeviceManagement.Enrollment
 .EXTERNALSCRIPTDEPENDENCIES
 
 .RELEASENOTES
+v1.0.15 - May 2026:
+        - Added support for Terms and Conditions assignments
+        - Added support for new-style Compliance Policies (Settings Catalog-based)
+        - Added support for Cloud PC Provisioning Policy assignments
+        - Added support for WDAC Supplemental Policy assignments
+        - Added support for macOS Shell Script assignments
+        - Added support for macOS Custom Attribute Shell Script assignments
+        - Added support for Intune Branding Profile assignments
 v1.0.14 - November 2025:
         - Fixed: Added missing DeviceManagementRBAC.Read.All permission for Intune Role Assignments
         - Fixed: Removed unnecessary Directory.Read.All permission from documentation
@@ -88,6 +96,13 @@ v1.0.1 - Initial Release:
       * Windows Feature Update Profiles
       * Windows Update Rings
       * Windows Driver Update Profiles
+    - Terms and Conditions
+    - Compliance Policies (new Settings Catalog-based)
+    - Cloud PC Provisioning Policies
+    - WDAC Supplemental Policies
+    - macOS Shell Scripts
+    - macOS Custom Attribute Shell Scripts
+    - Intune Branding Profiles
     
     Required Microsoft Graph API permissions:
     - DeviceManagementConfiguration.Read.All
@@ -96,7 +111,9 @@ v1.0.1 - Initial Release:
     - DeviceManagementServiceConfig.Read.All
     - Group.Read.All
     - DeviceManagementRBAC.Read.All (for Intune Role Assignments)
-    - CloudPC.Read.All (for Cloud PC Role Assignments)
+    - CloudPC.Read.All (for Cloud PC Role Assignments and Cloud PC Provisioning Policies)
+    - DeviceManagementServiceConfig.Read.All (for Terms and Conditions)
+    - DeviceManagementScripts.Read.All (for macOS Shell Scripts and Custom Attribute Scripts)
 
     - Shows included and excluded groups for each assignment
     - Displays filter information if configured
@@ -1447,6 +1464,419 @@ function Get-CloudPcRoleAssignment {
         }
     }
 }
+
+function Get-IntuneTermsAndConditionsAssignment {
+    param (
+        [Parameter(Mandatory = $false)]
+        [string]$displayName,
+        [Parameter(Mandatory = $false)]
+        [string]$groupId
+    )
+
+    if ($displayName) {
+        $TermsAndConditions = Get-MgBetaDeviceManagementTermAndCondition -Filter "displayName eq '$displayName'" -ExpandProperty "assignments"
+    } else {
+        $TermsAndConditions = Get-MgBetaDeviceManagementTermAndCondition -All -ExpandProperty "assignments"
+    }
+
+    foreach ($tac in $TermsAndConditions) {
+        $includedGroups = @()
+        $excludedGroups = @()
+        $FilterName = @()
+
+        $assignments = $tac.Assignments
+        foreach ($assignment in $assignments) {
+            if ($groupId -and $assignment.Target.AdditionalProperties.groupId -ne $groupId) {
+                continue
+            }
+
+            if ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.groupAssignmentTarget') {
+                $CurrentincludedGroup = (Get-MgBetaGroup -GroupId $($assignment.Target.AdditionalProperties.groupId)).DisplayName
+                if ($($assignment.Target.DeviceAndAppManagementAssignmentFilterId) -and $assignment.Target.DeviceAndAppManagementAssignmentFilterId -ne [guid]::Empty) {
+                    $FilterName = " | Filter: " + (Get-MgBetaDeviceManagementAssignmentFilter -DeviceAndAppManagementAssignmentFilterId $($assignment.Target.DeviceAndAppManagementAssignmentFilterId)).DisplayName
+                } else {
+                    $FilterName = " | No Filter"
+                }
+                $includedGroups += $CurrentincludedGroup + $FilterName
+            } elseif ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.allDevicesAssignmentTarget') {
+                $CurrentincludedGroup = "All Devices"
+                if ($($assignment.Target.DeviceAndAppManagementAssignmentFilterId) -and $assignment.Target.DeviceAndAppManagementAssignmentFilterId -ne [guid]::Empty) {
+                    $FilterName = " | Filter: " + (Get-MgBetaDeviceManagementAssignmentFilter -DeviceAndAppManagementAssignmentFilterId $($assignment.Target.DeviceAndAppManagementAssignmentFilterId)).DisplayName
+                } else {
+                    $FilterName = " | No Filter"
+                }
+                $includedGroups += $CurrentincludedGroup + $FilterName
+            } elseif ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.allLicensedUsersAssignmentTarget') {
+                $CurrentincludedGroup = "All Users"
+                if ($($assignment.Target.DeviceAndAppManagementAssignmentFilterId) -and $assignment.Target.DeviceAndAppManagementAssignmentFilterId -ne [guid]::Empty) {
+                    $FilterName = " | Filter: " + (Get-MgBetaDeviceManagementAssignmentFilter -DeviceAndAppManagementAssignmentFilterId $($assignment.Target.DeviceAndAppManagementAssignmentFilterId)).DisplayName
+                } else {
+                    $FilterName = " | No Filter"
+                }
+                $includedGroups += $CurrentincludedGroup + $FilterName
+            } elseif ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.exclusionGroupAssignmentTarget') {
+                $excludedGroups += (Get-MgBetaGroup -GroupId $($assignment.Target.AdditionalProperties.groupId)).DisplayName
+            }
+        }
+
+        if ($includedGroups.Count -gt 0 -or $excludedGroups.Count -gt 0) {
+            [PSCustomObject]@{
+                DisplayName    = $tac.DisplayName
+                ProfileType    = "Terms and Conditions"
+                IncludedGroups = $includedGroups
+                ExcludedGroups = $excludedGroups
+            }
+        }
+    }
+}
+
+function Get-IntuneNewCompliancePolicyAssignment {
+    param (
+        [Parameter(Mandatory = $false)]
+        [string]$displayName,
+        [Parameter(Mandatory = $false)]
+        [string]$groupId
+    )
+
+    try {
+        if ($displayName) {
+            $uri = "https://graph.microsoft.com/beta/deviceManagement/compliancePolicies?`$filter=displayName eq '$displayName'&`$expand=assignments"
+        } else {
+            $uri = "https://graph.microsoft.com/beta/deviceManagement/compliancePolicies?`$expand=assignments"
+        }
+        $CompliancePolicies = Invoke-MgGraphRequest -Uri $uri -Method Get -Headers @{ConsistencyLevel = "eventual"}
+    } catch {
+        Write-Warning "Failed to retrieve new-style Compliance Policies: $_"
+        return
+    }
+
+    foreach ($policy in $CompliancePolicies.value) {
+        $includedGroups = @()
+        $excludedGroups = @()
+        $FilterName = @()
+
+        foreach ($assignment in $policy.assignments) {
+            if ($groupId -and $assignment.target.groupId -ne $groupId) {
+                continue
+            }
+
+            if ($assignment.target.'@odata.type' -eq '#microsoft.graph.groupAssignmentTarget') {
+                $CurrentincludedGroup = (Get-MgBetaGroup -GroupId $($assignment.target.groupId)).DisplayName
+                if ($($assignment.target.deviceAndAppManagementAssignmentFilterId) -and $assignment.target.deviceAndAppManagementAssignmentFilterId -ne [guid]::Empty) {
+                    $FilterName = " | Filter: " + (Get-MgBetaDeviceManagementAssignmentFilter -DeviceAndAppManagementAssignmentFilterId $($assignment.target.deviceAndAppManagementAssignmentFilterId)).DisplayName
+                } else {
+                    $FilterName = " | No Filter"
+                }
+                $includedGroups += $CurrentincludedGroup + $FilterName
+            } elseif ($assignment.target.'@odata.type' -eq '#microsoft.graph.allDevicesAssignmentTarget') {
+                $CurrentincludedGroup = "All Devices"
+                if ($($assignment.target.deviceAndAppManagementAssignmentFilterId) -and $assignment.target.deviceAndAppManagementAssignmentFilterId -ne [guid]::Empty) {
+                    $FilterName = " | Filter: " + (Get-MgBetaDeviceManagementAssignmentFilter -DeviceAndAppManagementAssignmentFilterId $($assignment.target.deviceAndAppManagementAssignmentFilterId)).DisplayName
+                } else {
+                    $FilterName = " | No Filter"
+                }
+                $includedGroups += $CurrentincludedGroup + $FilterName
+            } elseif ($assignment.target.'@odata.type' -eq '#microsoft.graph.allLicensedUsersAssignmentTarget') {
+                $CurrentincludedGroup = "All Users"
+                if ($($assignment.target.deviceAndAppManagementAssignmentFilterId) -and $assignment.target.deviceAndAppManagementAssignmentFilterId -ne [guid]::Empty) {
+                    $FilterName = " | Filter: " + (Get-MgBetaDeviceManagementAssignmentFilter -DeviceAndAppManagementAssignmentFilterId $($assignment.target.deviceAndAppManagementAssignmentFilterId)).DisplayName
+                } else {
+                    $FilterName = " | No Filter"
+                }
+                $includedGroups += $CurrentincludedGroup + $FilterName
+            } elseif ($assignment.target.'@odata.type' -eq '#microsoft.graph.exclusionGroupAssignmentTarget') {
+                $excludedGroups += (Get-MgBetaGroup -GroupId $($assignment.target.groupId)).DisplayName
+            }
+        }
+
+        if ($includedGroups.Count -gt 0 -or $excludedGroups.Count -gt 0) {
+            [PSCustomObject]@{
+                DisplayName    = $policy.name
+                ProfileType    = "Compliance Policy (Settings Catalog)"
+                IncludedGroups = $includedGroups
+                ExcludedGroups = $excludedGroups
+            }
+        }
+    }
+}
+
+function Get-IntuneCloudPcProvisioningPolicyAssignment {
+    param (
+        [Parameter(Mandatory = $false)]
+        [string]$displayName,
+        [Parameter(Mandatory = $false)]
+        [string]$groupId
+    )
+
+    try {
+        if ($displayName) {
+            $uri = "https://graph.microsoft.com/beta/deviceManagement/virtualEndpoint/provisioningPolicies?`$filter=displayName eq '$displayName'&`$expand=assignments"
+        } else {
+            $uri = "https://graph.microsoft.com/beta/deviceManagement/virtualEndpoint/provisioningPolicies?`$expand=assignments"
+        }
+        $ProvisioningPolicies = Invoke-MgGraphRequest -Uri $uri -Method Get -Headers @{ConsistencyLevel = "eventual"}
+    } catch {
+        Write-Warning "Failed to retrieve Cloud PC Provisioning Policies: $_"
+        return
+    }
+
+    foreach ($policy in $ProvisioningPolicies.value) {
+        $includedGroups = @()
+        $excludedGroups = @()
+
+        foreach ($assignment in $policy.assignments) {
+            if ($groupId -and $assignment.target.groupId -ne $groupId) {
+                continue
+            }
+
+            if ($assignment.target.'@odata.type' -eq '#microsoft.graph.cloudPcManagementGroupAssignmentTarget') {
+                $CurrentincludedGroup = (Get-MgBetaGroup -GroupId $($assignment.target.groupId)).DisplayName
+                $includedGroups += $CurrentincludedGroup
+            } elseif ($assignment.target.'@odata.type' -eq '#microsoft.graph.cloudPcManagementAllDevicesAssignmentTarget' -or
+                      $assignment.target.'@odata.type' -eq '#microsoft.graph.allDevicesAssignmentTarget') {
+                $includedGroups += "All Devices"
+            } elseif ($assignment.target.'@odata.type' -eq '#microsoft.graph.allLicensedUsersAssignmentTarget') {
+                $includedGroups += "All Users"
+            }
+        }
+
+        if ($includedGroups.Count -gt 0 -or $excludedGroups.Count -gt 0) {
+            [PSCustomObject]@{
+                DisplayName    = $policy.displayName
+                ProfileType    = "Cloud PC Provisioning Policy"
+                IncludedGroups = $includedGroups
+                ExcludedGroups = $excludedGroups
+            }
+        }
+    }
+}
+
+function Get-IntuneWdacSupplementalPolicyAssignment {
+    param (
+        [Parameter(Mandatory = $false)]
+        [string]$displayName,
+        [Parameter(Mandatory = $false)]
+        [string]$groupId
+    )
+
+    try {
+        if ($displayName) {
+            $uri = "https://graph.microsoft.com/beta/deviceAppManagement/wdacSupplementalPolicies?`$filter=displayName eq '$displayName'&`$expand=assignments"
+        } else {
+            $uri = "https://graph.microsoft.com/beta/deviceAppManagement/wdacSupplementalPolicies?`$expand=assignments"
+        }
+        $WdacPolicies = Invoke-MgGraphRequest -Uri $uri -Method Get -Headers @{ConsistencyLevel = "eventual"}
+    } catch {
+        Write-Warning "Failed to retrieve WDAC Supplemental Policies: $_"
+        return
+    }
+
+    foreach ($policy in $WdacPolicies.value) {
+        $includedGroups = @()
+        $excludedGroups = @()
+        $FilterName = @()
+
+        foreach ($assignment in $policy.assignments) {
+            if ($groupId -and $assignment.target.groupId -ne $groupId) {
+                continue
+            }
+
+            if ($assignment.target.'@odata.type' -eq '#microsoft.graph.groupAssignmentTarget') {
+                $CurrentincludedGroup = (Get-MgBetaGroup -GroupId $($assignment.target.groupId)).DisplayName
+                if ($($assignment.target.deviceAndAppManagementAssignmentFilterId) -and $assignment.target.deviceAndAppManagementAssignmentFilterId -ne [guid]::Empty) {
+                    $FilterName = " | Filter: " + (Get-MgBetaDeviceManagementAssignmentFilter -DeviceAndAppManagementAssignmentFilterId $($assignment.target.deviceAndAppManagementAssignmentFilterId)).DisplayName
+                } else {
+                    $FilterName = " | No Filter"
+                }
+                $includedGroups += $CurrentincludedGroup + $FilterName
+            } elseif ($assignment.target.'@odata.type' -eq '#microsoft.graph.allDevicesAssignmentTarget') {
+                $CurrentincludedGroup = "All Devices"
+                if ($($assignment.target.deviceAndAppManagementAssignmentFilterId) -and $assignment.target.deviceAndAppManagementAssignmentFilterId -ne [guid]::Empty) {
+                    $FilterName = " | Filter: " + (Get-MgBetaDeviceManagementAssignmentFilter -DeviceAndAppManagementAssignmentFilterId $($assignment.target.deviceAndAppManagementAssignmentFilterId)).DisplayName
+                } else {
+                    $FilterName = " | No Filter"
+                }
+                $includedGroups += $CurrentincludedGroup + $FilterName
+            } elseif ($assignment.target.'@odata.type' -eq '#microsoft.graph.exclusionGroupAssignmentTarget') {
+                $excludedGroups += (Get-MgBetaGroup -GroupId $($assignment.target.groupId)).DisplayName
+            }
+        }
+
+        if ($includedGroups.Count -gt 0 -or $excludedGroups.Count -gt 0) {
+            [PSCustomObject]@{
+                DisplayName    = $policy.displayName
+                ProfileType    = "WDAC Supplemental Policy"
+                IncludedGroups = $includedGroups
+                ExcludedGroups = $excludedGroups
+            }
+        }
+    }
+}
+
+function Get-IntuneMacOsShellScriptAssignment {
+    param (
+        [Parameter(Mandatory = $false)]
+        [string]$displayName,
+        [Parameter(Mandatory = $false)]
+        [string]$groupId
+    )
+
+    if ($displayName) {
+        $ShellScripts = Get-MgBetaDeviceManagementDeviceShellScript -Filter "displayName eq '$displayName'" -ExpandProperty "assignments"
+    } else {
+        $ShellScripts = Get-MgBetaDeviceManagementDeviceShellScript -All -ExpandProperty "assignments"
+    }
+
+    foreach ($script in $ShellScripts) {
+        $includedGroups = @()
+        $excludedGroups = @()
+        $FilterName = @()
+
+        $assignments = $script.Assignments
+        foreach ($assignment in $assignments) {
+            if ($groupId -and $assignment.Target.AdditionalProperties.groupId -ne $groupId) {
+                continue
+            }
+
+            if ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.groupAssignmentTarget') {
+                $CurrentincludedGroup = (Get-MgBetaGroup -GroupId $($assignment.Target.AdditionalProperties.groupId)).DisplayName
+                if ($($assignment.Target.DeviceAndAppManagementAssignmentFilterId) -and $assignment.Target.DeviceAndAppManagementAssignmentFilterId -ne [guid]::Empty) {
+                    $FilterName = " | Filter: " + (Get-MgBetaDeviceManagementAssignmentFilter -DeviceAndAppManagementAssignmentFilterId $($assignment.Target.DeviceAndAppManagementAssignmentFilterId)).DisplayName
+                } else {
+                    $FilterName = " | No Filter"
+                }
+                $includedGroups += $CurrentincludedGroup + $FilterName
+            } elseif ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.allDevicesAssignmentTarget') {
+                $CurrentincludedGroup = "All Devices"
+                if ($($assignment.Target.DeviceAndAppManagementAssignmentFilterId) -and $assignment.Target.DeviceAndAppManagementAssignmentFilterId -ne [guid]::Empty) {
+                    $FilterName = " | Filter: " + (Get-MgBetaDeviceManagementAssignmentFilter -DeviceAndAppManagementAssignmentFilterId $($assignment.Target.DeviceAndAppManagementAssignmentFilterId)).DisplayName
+                } else {
+                    $FilterName = " | No Filter"
+                }
+                $includedGroups += $CurrentincludedGroup + $FilterName
+            } elseif ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.exclusionGroupAssignmentTarget') {
+                $excludedGroups += (Get-MgBetaGroup -GroupId $($assignment.Target.AdditionalProperties.groupId)).DisplayName
+            }
+        }
+
+        if ($includedGroups.Count -gt 0 -or $excludedGroups.Count -gt 0) {
+            [PSCustomObject]@{
+                DisplayName    = $script.DisplayName
+                ProfileType    = "macOS Shell Script"
+                IncludedGroups = $includedGroups
+                ExcludedGroups = $excludedGroups
+            }
+        }
+    }
+}
+
+function Get-IntuneMacOsCustomAttributeScriptAssignment {
+    param (
+        [Parameter(Mandatory = $false)]
+        [string]$displayName,
+        [Parameter(Mandatory = $false)]
+        [string]$groupId
+    )
+
+    if ($displayName) {
+        $CustomAttributeScripts = Get-MgBetaDeviceManagementDeviceCustomAttributeShellScript -Filter "displayName eq '$displayName'" -ExpandProperty "assignments"
+    } else {
+        $CustomAttributeScripts = Get-MgBetaDeviceManagementDeviceCustomAttributeShellScript -All -ExpandProperty "assignments"
+    }
+
+    foreach ($script in $CustomAttributeScripts) {
+        $includedGroups = @()
+        $excludedGroups = @()
+        $FilterName = @()
+
+        $assignments = $script.Assignments
+        foreach ($assignment in $assignments) {
+            if ($groupId -and $assignment.Target.AdditionalProperties.groupId -ne $groupId) {
+                continue
+            }
+
+            if ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.groupAssignmentTarget') {
+                $CurrentincludedGroup = (Get-MgBetaGroup -GroupId $($assignment.Target.AdditionalProperties.groupId)).DisplayName
+                if ($($assignment.Target.DeviceAndAppManagementAssignmentFilterId) -and $assignment.Target.DeviceAndAppManagementAssignmentFilterId -ne [guid]::Empty) {
+                    $FilterName = " | Filter: " + (Get-MgBetaDeviceManagementAssignmentFilter -DeviceAndAppManagementAssignmentFilterId $($assignment.Target.DeviceAndAppManagementAssignmentFilterId)).DisplayName
+                } else {
+                    $FilterName = " | No Filter"
+                }
+                $includedGroups += $CurrentincludedGroup + $FilterName
+            } elseif ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.allDevicesAssignmentTarget') {
+                $CurrentincludedGroup = "All Devices"
+                if ($($assignment.Target.DeviceAndAppManagementAssignmentFilterId) -and $assignment.Target.DeviceAndAppManagementAssignmentFilterId -ne [guid]::Empty) {
+                    $FilterName = " | Filter: " + (Get-MgBetaDeviceManagementAssignmentFilter -DeviceAndAppManagementAssignmentFilterId $($assignment.Target.DeviceAndAppManagementAssignmentFilterId)).DisplayName
+                } else {
+                    $FilterName = " | No Filter"
+                }
+                $includedGroups += $CurrentincludedGroup + $FilterName
+            } elseif ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.exclusionGroupAssignmentTarget') {
+                $excludedGroups += (Get-MgBetaGroup -GroupId $($assignment.Target.AdditionalProperties.groupId)).DisplayName
+            }
+        }
+
+        if ($includedGroups.Count -gt 0 -or $excludedGroups.Count -gt 0) {
+            [PSCustomObject]@{
+                DisplayName    = $script.DisplayName
+                ProfileType    = "macOS Custom Attribute Script"
+                IncludedGroups = $includedGroups
+                ExcludedGroups = $excludedGroups
+            }
+        }
+    }
+}
+
+function Get-IntuneBrandingProfileAssignment {
+    param (
+        [Parameter(Mandatory = $false)]
+        [string]$displayName,
+        [Parameter(Mandatory = $false)]
+        [string]$groupId
+    )
+
+    try {
+        if ($displayName) {
+            $uri = "https://graph.microsoft.com/beta/deviceManagement/intuneBrandingProfiles?`$filter=displayName eq '$displayName'&`$expand=assignments"
+        } else {
+            $uri = "https://graph.microsoft.com/beta/deviceManagement/intuneBrandingProfiles?`$expand=assignments"
+        }
+        $BrandingProfiles = Invoke-MgGraphRequest -Uri $uri -Method Get -Headers @{ConsistencyLevel = "eventual"}
+    } catch {
+        Write-Warning "Failed to retrieve Intune Branding Profiles: $_"
+        return
+    }
+
+    foreach ($profile in $BrandingProfiles.value) {
+        $includedGroups = @()
+        $excludedGroups = @()
+
+        foreach ($assignment in $profile.assignments) {
+            if ($groupId -and $assignment.target.groupId -ne $groupId) {
+                continue
+            }
+
+            if ($assignment.target.'@odata.type' -eq '#microsoft.graph.groupAssignmentTarget') {
+                $includedGroups += (Get-MgBetaGroup -GroupId $($assignment.target.groupId)).DisplayName
+            } elseif ($assignment.target.'@odata.type' -eq '#microsoft.graph.allDevicesAssignmentTarget') {
+                $includedGroups += "All Devices"
+            } elseif ($assignment.target.'@odata.type' -eq '#microsoft.graph.allLicensedUsersAssignmentTarget') {
+                $includedGroups += "All Users"
+            } elseif ($assignment.target.'@odata.type' -eq '#microsoft.graph.exclusionGroupAssignmentTarget') {
+                $excludedGroups += (Get-MgBetaGroup -GroupId $($assignment.target.groupId)).DisplayName
+            }
+        }
+
+        if ($includedGroups.Count -gt 0 -or $excludedGroups.Count -gt 0) {
+            [PSCustomObject]@{
+                DisplayName    = $profile.displayName
+                ProfileType    = "Intune Branding Profile"
+                IncludedGroups = $includedGroups
+                ExcludedGroups = $excludedGroups
+            }
+        }
+    }
+}
 #endregion
 
 #region Module Installation
@@ -1658,7 +2088,14 @@ $processSteps = @(
     @{ Name = "Device Enrollment Configurations"; Function = "Get-IntuneDeviceEnrollmentConfigurationAssignment" },
     @{ Name = "Windows Update Policies"; Function = "Get-IntuneWindowsUpdateAssignment" },
     @{ Name = "Role Assignments"; Function = "Get-IntuneRoleAssignment" },
-    @{ Name = "Cloud PC Role Assignments"; Function = "Get-CloudPcRoleAssignment" }
+    @{ Name = "Cloud PC Role Assignments"; Function = "Get-CloudPcRoleAssignment" },
+    @{ Name = "Terms and Conditions"; Function = "Get-IntuneTermsAndConditionsAssignment" },
+    @{ Name = "Compliance Policies (Settings Catalog)"; Function = "Get-IntuneNewCompliancePolicyAssignment" },
+    @{ Name = "Cloud PC Provisioning Policies"; Function = "Get-IntuneCloudPcProvisioningPolicyAssignment" },
+    @{ Name = "WDAC Supplemental Policies"; Function = "Get-IntuneWdacSupplementalPolicyAssignment" },
+    @{ Name = "macOS Shell Scripts"; Function = "Get-IntuneMacOsShellScriptAssignment" },
+    @{ Name = "macOS Custom Attribute Scripts"; Function = "Get-IntuneMacOsCustomAttributeScriptAssignment" },
+    @{ Name = "Intune Branding Profiles"; Function = "Get-IntuneBrandingProfileAssignment" }
 )
 
 foreach ($step in $processSteps) {
