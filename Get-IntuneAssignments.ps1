@@ -249,6 +249,19 @@ param (
 
 #region Support Functions
 
+function Get-GroupDisplayNameSafe {
+    param (
+        [Parameter(Mandatory = $true)]
+        [string]$GroupId
+    )
+    try {
+        $group = Get-MgBetaGroup -GroupId $GroupId -ErrorAction Stop
+        return $group.DisplayName
+    } catch {
+        return "$GroupId (Deleted or Not Found)"
+    }
+}
+
 function Get-IntuneAppProtectionAssignment {
     param (
         [Parameter(Mandatory = $false)]
@@ -293,7 +306,7 @@ function Get-IntuneAppProtectionAssignment {
             }
 
             if ($assignment.target.'@odata.type' -eq "#microsoft.graph.groupAssignmentTarget") {
-                $CurrentincludedGroup = (Get-MgBetaGroup -GroupId $($assignment.target.groupId)).DisplayName
+                $CurrentincludedGroup = Get-GroupDisplayNameSafe -GroupId $assignment.target.groupId
                 if ($($assignment.target.deviceAndAppManagementAssignmentFilterId) -and $assignment.target.deviceAndAppManagementAssignmentFilterId -ne [guid]::Empty) {
                     $FilterName = " | Filter: " + (Get-MgBetaDeviceManagementAssignmentFilter -DeviceAndAppManagementAssignmentFilterId $($assignment.target.deviceAndAppManagementAssignmentFilterId)).DisplayName
                 } else {
@@ -301,7 +314,7 @@ function Get-IntuneAppProtectionAssignment {
                 }
                 $includedGroups += $CurrentincludedGroup + $FilterName
             } elseif ($assignment.target.'@odata.type' -eq "#microsoft.graph.exclusionGroupAssignmentTarget") {
-                $excludedGroups += (Get-MgBetaGroup -GroupId $($assignment.target.groupId)).DisplayName
+                $excludedGroups += Get-GroupDisplayNameSafe -GroupId $assignment.target.groupId
             } elseif ($assignment.target.'@odata.type' -eq "#microsoft.graph.allDevicesAssignmentTarget") {
                 $CurrentincludedGroup = "All Devices"
                 if ($($assignment.target.deviceAndAppManagementAssignmentFilterId) -and $assignment.target.deviceAndAppManagementAssignmentFilterId -ne [guid]::Empty) {
@@ -491,7 +504,7 @@ function Get-IntuneDeviceManagementSecurityBaselineAssignment {
             }
 
             if ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.groupAssignmentTarget') {
-                $CurrentincludedGroup = (Get-MgbetaGroup -GroupId $($assignment.Target.AdditionalProperties.groupId)).DisplayName
+                $CurrentincludedGroup = Get-GroupDisplayNameSafe -GroupId $assignment.Target.AdditionalProperties.groupId
                 if ($($assignment.Target.DeviceAndAppManagementAssignmentFilterId) -and $assignment.Target.DeviceAndAppManagementAssignmentFilterId -ne [guid]::Empty) {
                     $FilterName = " | Filter: " + (Get-MgBetaDeviceManagementAssignmentFilter -DeviceAndAppManagementAssignmentFilterId $($assignment.Target.DeviceAndAppManagementAssignmentFilterId)).DisplayName
                 } else {
@@ -515,7 +528,7 @@ function Get-IntuneDeviceManagementSecurityBaselineAssignment {
                 }
                 $includedGroups += $CurrentincludedGroup + $FilterName
             } elseif ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.exclusionGroupAssignmentTarget') {
-                $excludedGroups += (Get-MgbetaGroup -GroupId $($assignment.Target.AdditionalProperties.groupId)).DisplayName
+                $excludedGroups += Get-GroupDisplayNameSafe -GroupId $assignment.Target.AdditionalProperties.groupId
             }
         }
 
@@ -558,7 +571,7 @@ function Get-IntuneDeviceCompliancePolicyAssignment {
             }
 
             if ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.groupAssignmentTarget') {
-                $CurrentincludedGroup = (Get-MgbetaGroup -GroupId $($assignment.Target.AdditionalProperties.groupId)).DisplayName
+                $CurrentincludedGroup = Get-GroupDisplayNameSafe -GroupId $assignment.Target.AdditionalProperties.groupId
                 if ($($assignment.Target.DeviceAndAppManagementAssignmentFilterId) -and $assignment.Target.DeviceAndAppManagementAssignmentFilterId -ne [guid]::Empty) {
                     $FilterName = " | Filter: " + (Get-MgBetaDeviceManagementAssignmentFilter -DeviceAndAppManagementAssignmentFilterId $($assignment.Target.DeviceAndAppManagementAssignmentFilterId)).DisplayName
                 } else {
@@ -582,7 +595,7 @@ function Get-IntuneDeviceCompliancePolicyAssignment {
                 }
                 $includedGroups += $CurrentincludedGroup + $FilterName
             } elseif ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.exclusionGroupAssignmentTarget') {
-                $excludedGroups += (Get-MgbetaGroup -GroupId $($assignment.Target.AdditionalProperties.groupId)).DisplayName
+                $excludedGroups += Get-GroupDisplayNameSafe -GroupId $assignment.Target.AdditionalProperties.groupId
             }
         }
 
@@ -625,7 +638,7 @@ function Get-IntuneDeviceConfigurationAssignment {
             }
 
             if ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.groupAssignmentTarget') {
-                $CurrentincludedGroup = (Get-MgbetaGroup -GroupId $($assignment.Target.AdditionalProperties.groupId)).DisplayName
+                $CurrentincludedGroup = Get-GroupDisplayNameSafe -GroupId $assignment.Target.AdditionalProperties.groupId
                 if ($($assignment.Target.DeviceAndAppManagementAssignmentFilterId) -and $assignment.Target.DeviceAndAppManagementAssignmentFilterId -ne [guid]::Empty) {
                     $FilterName = " | Filter: " + (Get-MgBetaDeviceManagementAssignmentFilter -DeviceAndAppManagementAssignmentFilterId $($assignment.Target.DeviceAndAppManagementAssignmentFilterId)).DisplayName
                 } else {
@@ -649,7 +662,7 @@ function Get-IntuneDeviceConfigurationAssignment {
                 }
                 $includedGroups += $CurrentincludedGroup + $FilterName
             } elseif ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.exclusionGroupAssignmentTarget') {
-                $excludedGroups += (Get-MgbetaGroup -GroupId $($assignment.Target.AdditionalProperties.groupId)).DisplayName
+                $excludedGroups += Get-GroupDisplayNameSafe -GroupId $assignment.Target.AdditionalProperties.groupId
             }
         }
 
@@ -692,7 +705,7 @@ function Get-IntuneDeviceManagementConfigurationPolicyAssignment {
             }
 
             if ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.groupAssignmentTarget') {
-                $CurrentincludedGroup = (Get-MgbetaGroup -GroupId $($assignment.Target.AdditionalProperties.groupId)).DisplayName
+                $CurrentincludedGroup = Get-GroupDisplayNameSafe -GroupId $assignment.Target.AdditionalProperties.groupId
                 if ($($assignment.Target.DeviceAndAppManagementAssignmentFilterId) -and $assignment.Target.DeviceAndAppManagementAssignmentFilterId -ne [guid]::Empty) {
                     $FilterName = " | Filter: " + (Get-MgBetaDeviceManagementAssignmentFilter -DeviceAndAppManagementAssignmentFilterId $($assignment.Target.DeviceAndAppManagementAssignmentFilterId)).DisplayName
                 } else {
@@ -716,7 +729,7 @@ function Get-IntuneDeviceManagementConfigurationPolicyAssignment {
                 }
                 $includedGroups += $CurrentincludedGroup + $FilterName
             } elseif ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.exclusionGroupAssignmentTarget') {
-                $excludedGroups += (Get-MgbetaGroup -GroupId $($assignment.Target.AdditionalProperties.groupId)).DisplayName
+                $excludedGroups += Get-GroupDisplayNameSafe -GroupId $assignment.Target.AdditionalProperties.groupId
             }
         }
 
@@ -759,7 +772,7 @@ function Get-IntuneDeviceConfigurationAdministrativeTemplatesAssignment {
             }
 
             if ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.groupAssignmentTarget') {
-                $CurrentincludedGroup = (Get-MgbetaGroup -GroupId $($assignment.Target.AdditionalProperties.groupId)).DisplayName
+                $CurrentincludedGroup = Get-GroupDisplayNameSafe -GroupId $assignment.Target.AdditionalProperties.groupId
                 if ($($assignment.Target.DeviceAndAppManagementAssignmentFilterId) -and $assignment.Target.DeviceAndAppManagementAssignmentFilterId -ne [guid]::Empty) {
                     $FilterName = " | Filter: " + (Get-MgBetaDeviceManagementAssignmentFilter -DeviceAndAppManagementAssignmentFilterId $($assignment.Target.DeviceAndAppManagementAssignmentFilterId)).DisplayName
                 } else {
@@ -783,7 +796,7 @@ function Get-IntuneDeviceConfigurationAdministrativeTemplatesAssignment {
                 }
                 $includedGroups += $CurrentincludedGroup + $FilterName
             } elseif ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.exclusionGroupAssignmentTarget') {
-                $excludedGroups += (Get-MgbetaGroup -GroupId $($assignment.Target.AdditionalProperties.groupId)).DisplayName
+                $excludedGroups += Get-GroupDisplayNameSafe -GroupId $assignment.Target.AdditionalProperties.groupId
             }
         }
 
@@ -826,7 +839,7 @@ function Get-IntuneRemediationScriptAssignment {
             }
 
             if ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.groupAssignmentTarget') {
-                $CurrentincludedGroup = (Get-MgbetaGroup -GroupId $($assignment.Target.AdditionalProperties.groupId)).DisplayName
+                $CurrentincludedGroup = Get-GroupDisplayNameSafe -GroupId $assignment.Target.AdditionalProperties.groupId
                 if ($($assignment.Target.DeviceAndAppManagementAssignmentFilterId) -and $assignment.Target.DeviceAndAppManagementAssignmentFilterId -ne [guid]::Empty) {
                     $FilterName = " | Filter: " + (Get-MgBetaDeviceManagementAssignmentFilter -DeviceAndAppManagementAssignmentFilterId $($assignment.Target.DeviceAndAppManagementAssignmentFilterId)).DisplayName
                 } else {
@@ -834,7 +847,7 @@ function Get-IntuneRemediationScriptAssignment {
                 }
                 $includedGroups += $CurrentincludedGroup + $FilterName
             } elseif ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.exclusionGroupAssignmentTarget') {
-                $excludedGroups += (Get-MgbetaGroup -GroupId $($assignment.Target.AdditionalProperties.groupId)).DisplayName
+                $excludedGroups += Get-GroupDisplayNameSafe -GroupId $assignment.Target.AdditionalProperties.groupId
             }
         }
 
@@ -877,7 +890,7 @@ function Get-IntuneWindowsUpdateAssignment {
             }
 
             if ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.groupAssignmentTarget') {
-                $CurrentincludedGroup = (Get-MgbetaGroup -GroupId $($assignment.Target.AdditionalProperties.groupId)).DisplayName
+                $CurrentincludedGroup = Get-GroupDisplayNameSafe -GroupId $assignment.Target.AdditionalProperties.groupId
                 if ($($assignment.Target.DeviceAndAppManagementAssignmentFilterId) -and $assignment.Target.DeviceAndAppManagementAssignmentFilterId -ne [guid]::Empty) {
                     $FilterName = " | Filter: " + (Get-MgBetaDeviceManagementAssignmentFilter -DeviceAndAppManagementAssignmentFilterId $($assignment.Target.DeviceAndAppManagementAssignmentFilterId)).DisplayName
                 } else {
@@ -893,7 +906,7 @@ function Get-IntuneWindowsUpdateAssignment {
                 }
                 $includedGroups += $CurrentincludedGroup + $FilterName
             } elseif ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.exclusionGroupAssignmentTarget') {
-                $excludedGroups += (Get-MgbetaGroup -GroupId $($assignment.Target.AdditionalProperties.groupId)).DisplayName
+                $excludedGroups += Get-GroupDisplayNameSafe -GroupId $assignment.Target.AdditionalProperties.groupId
             }
         }
 
@@ -926,7 +939,7 @@ function Get-IntuneWindowsUpdateAssignment {
             }
 
             if ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.groupAssignmentTarget') {
-                $CurrentincludedGroup = (Get-MgbetaGroup -GroupId $($assignment.Target.AdditionalProperties.groupId)).DisplayName
+                $CurrentincludedGroup = Get-GroupDisplayNameSafe -GroupId $assignment.Target.AdditionalProperties.groupId
                 if ($($assignment.Target.DeviceAndAppManagementAssignmentFilterId) -and $assignment.Target.DeviceAndAppManagementAssignmentFilterId -ne [guid]::Empty) {
                     $FilterName = " | Filter: " + (Get-MgBetaDeviceManagementAssignmentFilter -DeviceAndAppManagementAssignmentFilterId $($assignment.Target.DeviceAndAppManagementAssignmentFilterId)).DisplayName
                 } else {
@@ -942,7 +955,7 @@ function Get-IntuneWindowsUpdateAssignment {
                 }
                 $includedGroups += $CurrentincludedGroup + $FilterName
             } elseif ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.exclusionGroupAssignmentTarget') {
-                $excludedGroups += (Get-MgbetaGroup -GroupId $($assignment.Target.AdditionalProperties.groupId)).DisplayName
+                $excludedGroups += Get-GroupDisplayNameSafe -GroupId $assignment.Target.AdditionalProperties.groupId
             }
         }
 
@@ -972,7 +985,7 @@ function Get-IntuneWindowsUpdateAssignment {
                 }
 
                 if ($assignment.target.'@odata.type' -eq '#microsoft.graph.groupAssignmentTarget') {
-                    $CurrentincludedGroup = (Get-MgbetaGroup -GroupId $($assignment.target.groupId)).DisplayName
+                    $CurrentincludedGroup = Get-GroupDisplayNameSafe -GroupId $assignment.target.groupId
                     if ($($assignment.target.deviceAndAppManagementAssignmentFilterId) -and $assignment.target.deviceAndAppManagementAssignmentFilterId -ne [guid]::Empty) {
                         $FilterName = " | Filter: " + (Get-MgBetaDeviceManagementAssignmentFilter -DeviceAndAppManagementAssignmentFilterId $($assignment.target.deviceAndAppManagementAssignmentFilterId)).DisplayName
                     } else {
@@ -988,7 +1001,7 @@ function Get-IntuneWindowsUpdateAssignment {
                     }
                     $includedGroups += $CurrentincludedGroup + $FilterName
                 } elseif ($assignment.target.'@odata.type' -eq '#microsoft.graph.exclusionGroupAssignmentTarget') {
-                    $excludedGroups += (Get-MgbetaGroup -GroupId $($assignment.target.groupId)).DisplayName
+                    $excludedGroups += Get-GroupDisplayNameSafe -GroupId $assignment.target.groupId
                 }
             }
 
@@ -1021,7 +1034,7 @@ function Get-IntuneWindowsUpdateAssignment {
                 }
 
                 if ($assignment.target.'@odata.type' -eq '#microsoft.graph.groupAssignmentTarget') {
-                    $CurrentincludedGroup = (Get-MgbetaGroup -GroupId $($assignment.target.groupId)).DisplayName
+                    $CurrentincludedGroup = Get-GroupDisplayNameSafe -GroupId $assignment.target.groupId
                     if ($($assignment.target.deviceAndAppManagementAssignmentFilterId) -and $assignment.target.deviceAndAppManagementAssignmentFilterId -ne [guid]::Empty) {
                         $FilterName = " | Filter: " + (Get-MgBetaDeviceManagementAssignmentFilter -DeviceAndAppManagementAssignmentFilterId $($assignment.target.deviceAndAppManagementAssignmentFilterId)).DisplayName
                     } else {
@@ -1037,7 +1050,7 @@ function Get-IntuneWindowsUpdateAssignment {
                     }
                     $includedGroups += $CurrentincludedGroup + $FilterName
                 } elseif ($assignment.target.'@odata.type' -eq '#microsoft.graph.exclusionGroupAssignmentTarget') {
-                    $excludedGroups += (Get-MgbetaGroup -GroupId $($assignment.target.groupId)).DisplayName
+                    $excludedGroups += Get-GroupDisplayNameSafe -GroupId $assignment.target.groupId
                 }
             }
 
@@ -1082,7 +1095,7 @@ function Get-IntuneAutopilotProfileAssignment {
             }
 
             if ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.groupAssignmentTarget') {
-                $CurrentincludedGroup = (Get-MgbetaGroup -GroupId $($assignment.Target.AdditionalProperties.groupId)).DisplayName
+                $CurrentincludedGroup = Get-GroupDisplayNameSafe -GroupId $assignment.Target.AdditionalProperties.groupId
                 if ($($assignment.Target.DeviceAndAppManagementAssignmentFilterId) -and $assignment.Target.DeviceAndAppManagementAssignmentFilterId -ne [guid]::Empty) {
                     $FilterName = " | Filter: " + (Get-MgBetaDeviceManagementAssignmentFilter -DeviceAndAppManagementAssignmentFilterId $($assignment.Target.DeviceAndAppManagementAssignmentFilterId)).DisplayName
                 } else {
@@ -1090,7 +1103,7 @@ function Get-IntuneAutopilotProfileAssignment {
                 }
                 $includedGroups += $CurrentincludedGroup + $FilterName
             } elseif ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.exclusionGroupAssignmentTarget') {
-                $excludedGroups += (Get-MgbetaGroup -GroupId $($assignment.Target.AdditionalProperties.groupId)).DisplayName
+                $excludedGroups += Get-GroupDisplayNameSafe -GroupId $assignment.Target.AdditionalProperties.groupId
             }
         }
 
@@ -1133,7 +1146,7 @@ function Get-IntuneDeviceManagementScriptAssignment {
             }
 
             if ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.groupAssignmentTarget') {
-                $CurrentincludedGroup = (Get-MgbetaGroup -GroupId $($assignment.Target.AdditionalProperties.groupId)).DisplayName
+                $CurrentincludedGroup = Get-GroupDisplayNameSafe -GroupId $assignment.Target.AdditionalProperties.groupId
                 if ($($assignment.Target.DeviceAndAppManagementAssignmentFilterId) -and $assignment.Target.DeviceAndAppManagementAssignmentFilterId -ne [guid]::Empty) {
                     $FilterName = " | Filter: " + (Get-MgBetaDeviceManagementAssignmentFilter -DeviceAndAppManagementAssignmentFilterId $($assignment.Target.DeviceAndAppManagementAssignmentFilterId)).DisplayName
                 } else {
@@ -1141,7 +1154,7 @@ function Get-IntuneDeviceManagementScriptAssignment {
                 }
                 $includedGroups += $CurrentincludedGroup + $FilterName
             } elseif ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.exclusionGroupAssignmentTarget') {
-                $excludedGroups += (Get-MgbetaGroup -GroupId $($assignment.Target.AdditionalProperties.groupId)).DisplayName
+                $excludedGroups += Get-GroupDisplayNameSafe -GroupId $assignment.Target.AdditionalProperties.groupId
             }
         }
 
@@ -1184,7 +1197,7 @@ function Get-IntuneWindowsInformationProtectionPolicyAssignment {
             }
 
             if ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.groupAssignmentTarget') {
-                $CurrentincludedGroup = (Get-MgbetaGroup -GroupId $($assignment.Target.AdditionalProperties.groupId)).DisplayName
+                $CurrentincludedGroup = Get-GroupDisplayNameSafe -GroupId $assignment.Target.AdditionalProperties.groupId
                 if ($($assignment.Target.DeviceAndAppManagementAssignmentFilterId) -and $assignment.Target.DeviceAndAppManagementAssignmentFilterId -ne [guid]::Empty) {
                     $FilterName = " | Filter: " + (Get-MgBetaDeviceManagementAssignmentFilter -DeviceAndAppManagementAssignmentFilterId $($assignment.Target.DeviceAndAppManagementAssignmentFilterId)).DisplayName
                 } else {
@@ -1192,7 +1205,7 @@ function Get-IntuneWindowsInformationProtectionPolicyAssignment {
                 }
                 $includedGroups += $CurrentincludedGroup + $FilterName
             } elseif ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.exclusionGroupAssignmentTarget') {
-                $excludedGroups += (Get-MgbetaGroup -GroupId $($assignment.Target.AdditionalProperties.groupId)).DisplayName
+                $excludedGroups += Get-GroupDisplayNameSafe -GroupId $assignment.Target.AdditionalProperties.groupId
             }
         }
 
@@ -1235,7 +1248,7 @@ function Get-IntuneDeviceEnrollmentConfigurationAssignment {
             }
 
             if ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.groupAssignmentTarget') {
-                $CurrentincludedGroup = (Get-MgbetaGroup -GroupId $($assignment.Target.AdditionalProperties.groupId)).DisplayName
+                $CurrentincludedGroup = Get-GroupDisplayNameSafe -GroupId $assignment.Target.AdditionalProperties.groupId
                 if ($($assignment.Target.DeviceAndAppManagementAssignmentFilterId) -and $assignment.Target.DeviceAndAppManagementAssignmentFilterId -ne [guid]::Empty) {
                     $FilterName = " | Filter: " + (Get-MgBetaDeviceManagementAssignmentFilter -DeviceAndAppManagementAssignmentFilterId $($assignment.Target.DeviceAndAppManagementAssignmentFilterId)).DisplayName
                 } else {
@@ -1259,7 +1272,7 @@ function Get-IntuneDeviceEnrollmentConfigurationAssignment {
                 }
                 $includedGroups += $CurrentincludedGroup + $FilterName
             } elseif ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.exclusionGroupAssignmentTarget') {
-                $excludedGroups += (Get-MgbetaGroup -GroupId $($assignment.Target.AdditionalProperties.groupId)).DisplayName
+                $excludedGroups += Get-GroupDisplayNameSafe -GroupId $assignment.Target.AdditionalProperties.groupId
             }
         }
 
@@ -1491,7 +1504,7 @@ function Get-IntuneTermsAndConditionsAssignment {
             }
 
             if ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.groupAssignmentTarget') {
-                $CurrentincludedGroup = (Get-MgBetaGroup -GroupId $($assignment.Target.AdditionalProperties.groupId)).DisplayName
+                $CurrentincludedGroup = Get-GroupDisplayNameSafe -GroupId $assignment.Target.AdditionalProperties.groupId
                 if ($($assignment.Target.DeviceAndAppManagementAssignmentFilterId) -and $assignment.Target.DeviceAndAppManagementAssignmentFilterId -ne [guid]::Empty) {
                     $FilterName = " | Filter: " + (Get-MgBetaDeviceManagementAssignmentFilter -DeviceAndAppManagementAssignmentFilterId $($assignment.Target.DeviceAndAppManagementAssignmentFilterId)).DisplayName
                 } else {
@@ -1515,7 +1528,7 @@ function Get-IntuneTermsAndConditionsAssignment {
                 }
                 $includedGroups += $CurrentincludedGroup + $FilterName
             } elseif ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.exclusionGroupAssignmentTarget') {
-                $excludedGroups += (Get-MgBetaGroup -GroupId $($assignment.Target.AdditionalProperties.groupId)).DisplayName
+                $excludedGroups += Get-GroupDisplayNameSafe -GroupId $assignment.Target.AdditionalProperties.groupId
             }
         }
 
@@ -1561,7 +1574,7 @@ function Get-IntuneNewCompliancePolicyAssignment {
             }
 
             if ($assignment.target.'@odata.type' -eq '#microsoft.graph.groupAssignmentTarget') {
-                $CurrentincludedGroup = (Get-MgBetaGroup -GroupId $($assignment.target.groupId)).DisplayName
+                $CurrentincludedGroup = Get-GroupDisplayNameSafe -GroupId $assignment.target.groupId
                 if ($($assignment.target.deviceAndAppManagementAssignmentFilterId) -and $assignment.target.deviceAndAppManagementAssignmentFilterId -ne [guid]::Empty) {
                     $FilterName = " | Filter: " + (Get-MgBetaDeviceManagementAssignmentFilter -DeviceAndAppManagementAssignmentFilterId $($assignment.target.deviceAndAppManagementAssignmentFilterId)).DisplayName
                 } else {
@@ -1585,7 +1598,7 @@ function Get-IntuneNewCompliancePolicyAssignment {
                 }
                 $includedGroups += $CurrentincludedGroup + $FilterName
             } elseif ($assignment.target.'@odata.type' -eq '#microsoft.graph.exclusionGroupAssignmentTarget') {
-                $excludedGroups += (Get-MgBetaGroup -GroupId $($assignment.target.groupId)).DisplayName
+                $excludedGroups += Get-GroupDisplayNameSafe -GroupId $assignment.target.groupId
             }
         }
 
@@ -1630,7 +1643,7 @@ function Get-IntuneCloudPcProvisioningPolicyAssignment {
             }
 
             if ($assignment.target.'@odata.type' -eq '#microsoft.graph.cloudPcManagementGroupAssignmentTarget') {
-                $CurrentincludedGroup = (Get-MgBetaGroup -GroupId $($assignment.target.groupId)).DisplayName
+                $CurrentincludedGroup = Get-GroupDisplayNameSafe -GroupId $assignment.target.groupId
                 $includedGroups += $CurrentincludedGroup
             } elseif ($assignment.target.'@odata.type' -eq '#microsoft.graph.cloudPcManagementAllDevicesAssignmentTarget' -or
                       $assignment.target.'@odata.type' -eq '#microsoft.graph.allDevicesAssignmentTarget') {
@@ -1682,7 +1695,7 @@ function Get-IntuneWdacSupplementalPolicyAssignment {
             }
 
             if ($assignment.target.'@odata.type' -eq '#microsoft.graph.groupAssignmentTarget') {
-                $CurrentincludedGroup = (Get-MgBetaGroup -GroupId $($assignment.target.groupId)).DisplayName
+                $CurrentincludedGroup = Get-GroupDisplayNameSafe -GroupId $assignment.target.groupId
                 if ($($assignment.target.deviceAndAppManagementAssignmentFilterId) -and $assignment.target.deviceAndAppManagementAssignmentFilterId -ne [guid]::Empty) {
                     $FilterName = " | Filter: " + (Get-MgBetaDeviceManagementAssignmentFilter -DeviceAndAppManagementAssignmentFilterId $($assignment.target.deviceAndAppManagementAssignmentFilterId)).DisplayName
                 } else {
@@ -1698,7 +1711,7 @@ function Get-IntuneWdacSupplementalPolicyAssignment {
                 }
                 $includedGroups += $CurrentincludedGroup + $FilterName
             } elseif ($assignment.target.'@odata.type' -eq '#microsoft.graph.exclusionGroupAssignmentTarget') {
-                $excludedGroups += (Get-MgBetaGroup -GroupId $($assignment.target.groupId)).DisplayName
+                $excludedGroups += Get-GroupDisplayNameSafe -GroupId $assignment.target.groupId
             }
         }
 
@@ -1739,7 +1752,7 @@ function Get-IntuneMacOsShellScriptAssignment {
             }
 
             if ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.groupAssignmentTarget') {
-                $CurrentincludedGroup = (Get-MgBetaGroup -GroupId $($assignment.Target.AdditionalProperties.groupId)).DisplayName
+                $CurrentincludedGroup = Get-GroupDisplayNameSafe -GroupId $assignment.Target.AdditionalProperties.groupId
                 if ($($assignment.Target.DeviceAndAppManagementAssignmentFilterId) -and $assignment.Target.DeviceAndAppManagementAssignmentFilterId -ne [guid]::Empty) {
                     $FilterName = " | Filter: " + (Get-MgBetaDeviceManagementAssignmentFilter -DeviceAndAppManagementAssignmentFilterId $($assignment.Target.DeviceAndAppManagementAssignmentFilterId)).DisplayName
                 } else {
@@ -1755,7 +1768,7 @@ function Get-IntuneMacOsShellScriptAssignment {
                 }
                 $includedGroups += $CurrentincludedGroup + $FilterName
             } elseif ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.exclusionGroupAssignmentTarget') {
-                $excludedGroups += (Get-MgBetaGroup -GroupId $($assignment.Target.AdditionalProperties.groupId)).DisplayName
+                $excludedGroups += Get-GroupDisplayNameSafe -GroupId $assignment.Target.AdditionalProperties.groupId
             }
         }
 
@@ -1796,7 +1809,7 @@ function Get-IntuneMacOsCustomAttributeScriptAssignment {
             }
 
             if ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.groupAssignmentTarget') {
-                $CurrentincludedGroup = (Get-MgBetaGroup -GroupId $($assignment.Target.AdditionalProperties.groupId)).DisplayName
+                $CurrentincludedGroup = Get-GroupDisplayNameSafe -GroupId $assignment.Target.AdditionalProperties.groupId
                 if ($($assignment.Target.DeviceAndAppManagementAssignmentFilterId) -and $assignment.Target.DeviceAndAppManagementAssignmentFilterId -ne [guid]::Empty) {
                     $FilterName = " | Filter: " + (Get-MgBetaDeviceManagementAssignmentFilter -DeviceAndAppManagementAssignmentFilterId $($assignment.Target.DeviceAndAppManagementAssignmentFilterId)).DisplayName
                 } else {
@@ -1812,7 +1825,7 @@ function Get-IntuneMacOsCustomAttributeScriptAssignment {
                 }
                 $includedGroups += $CurrentincludedGroup + $FilterName
             } elseif ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.exclusionGroupAssignmentTarget') {
-                $excludedGroups += (Get-MgBetaGroup -GroupId $($assignment.Target.AdditionalProperties.groupId)).DisplayName
+                $excludedGroups += Get-GroupDisplayNameSafe -GroupId $assignment.Target.AdditionalProperties.groupId
             }
         }
 
@@ -1857,13 +1870,13 @@ function Get-IntuneBrandingProfileAssignment {
             }
 
             if ($assignment.target.'@odata.type' -eq '#microsoft.graph.groupAssignmentTarget') {
-                $includedGroups += (Get-MgBetaGroup -GroupId $($assignment.target.groupId)).DisplayName
+                $includedGroups += Get-GroupDisplayNameSafe -GroupId $assignment.target.groupId
             } elseif ($assignment.target.'@odata.type' -eq '#microsoft.graph.allDevicesAssignmentTarget') {
                 $includedGroups += "All Devices"
             } elseif ($assignment.target.'@odata.type' -eq '#microsoft.graph.allLicensedUsersAssignmentTarget') {
                 $includedGroups += "All Users"
             } elseif ($assignment.target.'@odata.type' -eq '#microsoft.graph.exclusionGroupAssignmentTarget') {
-                $excludedGroups += (Get-MgBetaGroup -GroupId $($assignment.target.groupId)).DisplayName
+                $excludedGroups += Get-GroupDisplayNameSafe -GroupId $assignment.target.groupId
             }
         }
 
