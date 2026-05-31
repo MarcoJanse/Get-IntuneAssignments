@@ -1486,60 +1486,68 @@ function Get-IntuneTermsAndConditionsAssignment {
         [string]$groupId
     )
 
-    if ($displayName) {
-        $TermsAndConditions = Get-MgBetaDeviceManagementTermAndCondition -Filter "displayName eq '$displayName'" -ExpandProperty "assignments"
-    } else {
-        $TermsAndConditions = Get-MgBetaDeviceManagementTermAndCondition -All -ExpandProperty "assignments"
-    }
-
-    foreach ($tac in $TermsAndConditions) {
-        $includedGroups = @()
-        $excludedGroups = @()
-        $FilterName = @()
-
-        $assignments = $tac.Assignments
-        foreach ($assignment in $assignments) {
-            if ($groupId -and $assignment.Target.AdditionalProperties.groupId -ne $groupId) {
-                continue
-            }
-
-            if ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.groupAssignmentTarget') {
-                $CurrentincludedGroup = Get-GroupDisplayNameSafe -GroupId $assignment.Target.AdditionalProperties.groupId
-                if ($($assignment.Target.DeviceAndAppManagementAssignmentFilterId) -and $assignment.Target.DeviceAndAppManagementAssignmentFilterId -ne [guid]::Empty) {
-                    $FilterName = " | Filter: " + (Get-MgBetaDeviceManagementAssignmentFilter -DeviceAndAppManagementAssignmentFilterId $($assignment.Target.DeviceAndAppManagementAssignmentFilterId)).DisplayName
-                } else {
-                    $FilterName = " | No Filter"
-                }
-                $includedGroups += $CurrentincludedGroup + $FilterName
-            } elseif ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.allDevicesAssignmentTarget') {
-                $CurrentincludedGroup = "All Devices"
-                if ($($assignment.Target.DeviceAndAppManagementAssignmentFilterId) -and $assignment.Target.DeviceAndAppManagementAssignmentFilterId -ne [guid]::Empty) {
-                    $FilterName = " | Filter: " + (Get-MgBetaDeviceManagementAssignmentFilter -DeviceAndAppManagementAssignmentFilterId $($assignment.Target.DeviceAndAppManagementAssignmentFilterId)).DisplayName
-                } else {
-                    $FilterName = " | No Filter"
-                }
-                $includedGroups += $CurrentincludedGroup + $FilterName
-            } elseif ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.allLicensedUsersAssignmentTarget') {
-                $CurrentincludedGroup = "All Users"
-                if ($($assignment.Target.DeviceAndAppManagementAssignmentFilterId) -and $assignment.Target.DeviceAndAppManagementAssignmentFilterId -ne [guid]::Empty) {
-                    $FilterName = " | Filter: " + (Get-MgBetaDeviceManagementAssignmentFilter -DeviceAndAppManagementAssignmentFilterId $($assignment.Target.DeviceAndAppManagementAssignmentFilterId)).DisplayName
-                } else {
-                    $FilterName = " | No Filter"
-                }
-                $includedGroups += $CurrentincludedGroup + $FilterName
-            } elseif ($assignment.Target.AdditionalProperties.'@odata.type' -eq '#microsoft.graph.exclusionGroupAssignmentTarget') {
-                $excludedGroups += Get-GroupDisplayNameSafe -GroupId $assignment.Target.AdditionalProperties.groupId
-            }
+    try {
+        if ($displayName) {
+            $uri = "https://graph.microsoft.com/beta/deviceManagement/termsAndConditions?`$filter=displayName eq '$displayName'"
+        } else {
+            $uri = "https://graph.microsoft.com/beta/deviceManagement/termsAndConditions"
         }
 
-        if ($includedGroups.Count -gt 0 -or $excludedGroups.Count -gt 0) {
-            [PSCustomObject]@{
-                DisplayName    = $tac.DisplayName
-                ProfileType    = "Terms and Conditions"
-                IncludedGroups = $includedGroups
-                ExcludedGroups = $excludedGroups
+        $TermsAndConditions = (Invoke-MgGraphRequest -Uri $uri -Method Get -Headers @{ConsistencyLevel = "eventual"} -ErrorAction Stop).value
+
+        foreach ($tac in $TermsAndConditions) {
+            $includedGroups = @()
+            $excludedGroups = @()
+            $FilterName = @()
+
+            $assignmentsUri = "https://graph.microsoft.com/beta/deviceManagement/termsAndConditions/$($tac.id)/assignments"
+            $assignments = (Invoke-MgGraphRequest -Uri $assignmentsUri -Method Get -ErrorAction Stop).value
+
+            foreach ($assignment in $assignments) {
+                if ($groupId -and $assignment.target.groupId -ne $groupId) {
+                    continue
+                }
+
+                if ($assignment.target.'@odata.type' -eq '#microsoft.graph.groupAssignmentTarget') {
+                    $CurrentincludedGroup = Get-GroupDisplayNameSafe -GroupId $assignment.target.groupId
+                    if ($($assignment.target.deviceAndAppManagementAssignmentFilterId) -and $assignment.target.deviceAndAppManagementAssignmentFilterId -ne [guid]::Empty) {
+                        $FilterName = " | Filter: " + (Get-MgBetaDeviceManagementAssignmentFilter -DeviceAndAppManagementAssignmentFilterId $($assignment.target.deviceAndAppManagementAssignmentFilterId)).DisplayName
+                    } else {
+                        $FilterName = " | No Filter"
+                    }
+                    $includedGroups += $CurrentincludedGroup + $FilterName
+                } elseif ($assignment.target.'@odata.type' -eq '#microsoft.graph.allDevicesAssignmentTarget') {
+                    $CurrentincludedGroup = "All Devices"
+                    if ($($assignment.target.deviceAndAppManagementAssignmentFilterId) -and $assignment.target.deviceAndAppManagementAssignmentFilterId -ne [guid]::Empty) {
+                        $FilterName = " | Filter: " + (Get-MgBetaDeviceManagementAssignmentFilter -DeviceAndAppManagementAssignmentFilterId $($assignment.target.deviceAndAppManagementAssignmentFilterId)).DisplayName
+                    } else {
+                        $FilterName = " | No Filter"
+                    }
+                    $includedGroups += $CurrentincludedGroup + $FilterName
+                } elseif ($assignment.target.'@odata.type' -eq '#microsoft.graph.allLicensedUsersAssignmentTarget') {
+                    $CurrentincludedGroup = "All Users"
+                    if ($($assignment.target.deviceAndAppManagementAssignmentFilterId) -and $assignment.target.deviceAndAppManagementAssignmentFilterId -ne [guid]::Empty) {
+                        $FilterName = " | Filter: " + (Get-MgBetaDeviceManagementAssignmentFilter -DeviceAndAppManagementAssignmentFilterId $($assignment.target.deviceAndAppManagementAssignmentFilterId)).DisplayName
+                    } else {
+                        $FilterName = " | No Filter"
+                    }
+                    $includedGroups += $CurrentincludedGroup + $FilterName
+                } elseif ($assignment.target.'@odata.type' -eq '#microsoft.graph.exclusionGroupAssignmentTarget') {
+                    $excludedGroups += Get-GroupDisplayNameSafe -GroupId $assignment.target.groupId
+                }
+            }
+
+            if ($includedGroups.Count -gt 0 -or $excludedGroups.Count -gt 0) {
+                [PSCustomObject]@{
+                    DisplayName    = $tac.displayName
+                    ProfileType    = "Terms and Conditions"
+                    IncludedGroups = $includedGroups
+                    ExcludedGroups = $excludedGroups
+                }
             }
         }
+    } catch {
+        Write-Warning "Failed to retrieve Terms and Conditions assignments: $_"
     }
 }
 
