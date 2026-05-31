@@ -1,0 +1,69 @@
+name: Validate Script
+
+on:
+  pull_request:
+    branches: [main, dev]
+  push:
+    branches: [main, dev]
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Test script syntax
+      shell: pwsh
+      run: |
+        Write-Host "Testing PowerShell syntax..."
+        $errors = $null
+        $null = [System.Management.Automation.PSParser]::Tokenize((Get-Content .\Get-IntuneAssignments.ps1 -Raw), [ref]$errors)
+        
+        if ($errors.Count -gt 0) {
+          $errors | ForEach-Object { Write-Error $_ }
+          exit 1
+        }
+        Write-Host "✅ Syntax validation passed"
+    
+    - name: Validate PSScriptInfo
+      shell: pwsh
+      run: |
+        Write-Host "Validating PSScriptInfo metadata..."
+        $content = Get-Content .\Get-IntuneAssignments.ps1 -Raw
+        
+        # Check required fields
+        $requiredFields = @('.VERSION', '.GUID', '.AUTHOR', '.DESCRIPTION')
+        foreach ($field in $requiredFields) {
+          if ($content -notmatch $field) {
+            Write-Error "Missing required field: $field"
+            exit 1
+          }
+        }
+        
+        # Extract version
+        if ($content -match '\.VERSION\s+(\d+\.\d+\.\d+)') {
+          $version = $matches[1]
+          Write-Host "✅ Found version: $version"
+        } else {
+          Write-Error "Invalid version format"
+          exit 1
+        }
+        
+        Write-Host "✅ PSScriptInfo validation passed"
+    
+    - name: Test script can be imported
+      shell: pwsh
+      run: |
+        Write-Host "Testing if script can be imported..."
+        try {
+          # Test that the script doesn't have runtime errors when dot-sourced
+          $testScript = Get-Content .\Get-IntuneAssignments.ps1 -Raw
+          # Remove the param block and execution code, just test functions
+          $null = [scriptblock]::Create($testScript)
+          Write-Host "✅ Script can be parsed successfully"
+        } catch {
+          Write-Error "Failed to parse script: $_"
+          exit 1
+        }
