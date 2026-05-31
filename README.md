@@ -18,8 +18,8 @@ Install-Script -Name Get-IntuneAssignments
     - DeviceManagementServiceConfig.Read.All
     - DeviceManagementScripts.Read.All
     - Group.Read.All
-    - Directory.Read.All
-    - CloudPC.Read.All (for Cloud PC Role Assignments)
+    - DeviceManagementRBAC.Read.All (for Intune Role Assignments)
+    - CloudPC.Read.All (for Cloud PC Role Assignments and Cloud PC Provisioning Policies)
 
 ## API Permissions
 
@@ -31,7 +31,7 @@ The following Microsoft Graph API permissions are required:
 - DeviceManagementServiceConfig.Read.All
 - DeviceManagementScripts.Read.All
 - Group.Read.All
-- Directory.Read.All
+- DeviceManagementRBAC.Read.All
 - CloudPC.Read.All
 
 These permissions will be requested automatically when connecting to Microsoft Graph.
@@ -112,6 +112,13 @@ Get-IntuneAssignments -AuthMethod Certificate -TenantId "contoso.onmicrosoft.com
   - Cloud PC Role Assignments
     - Windows 365 Cloud PC administrative role assignments
     - Includes role definition names and directory scopes
+  - Terms and Conditions
+  - Compliance Policies (Settings Catalog)
+  - Cloud PC Provisioning Policies
+  - WDAC Supplemental Policies
+  - macOS Shell Scripts
+  - macOS Custom Attribute Scripts
+  - Intune Branding Profiles
 - Shows included and excluded groups for each assignment
 - Displays filter information if configured
 - Export results to CSV
@@ -151,6 +158,20 @@ Supported authentication methods:
 Contributions are welcome! Please submit a pull request.
 
 ## Changelog
+
+### Version 1.0.15 - May 2026
+- ✨ Added support for 7 new assignment policy types:
+  - Terms and Conditions
+  - Compliance Policies (Settings Catalog) — new-style compliance policies using the Settings Catalog engine
+  - Cloud PC Provisioning Policies
+  - WDAC Supplemental Policies
+  - macOS Shell Scripts
+  - macOS Custom Attribute Scripts
+  - Intune Branding Profiles
+- 🐛 Fixed 404 errors when a group is deleted from the tenant but still referenced in a policy assignment
+  - Added `Get-GroupDisplayNameSafe` helper that returns `"<GUID> (Deleted or Not Found)"` instead of throwing
+- 🐛 Replaced non-existent `Get-MgBetaDeviceManagementTermAndCondition` SDK cmdlet with direct Graph API calls
+  - Uses `GET /deviceManagement/termsAndConditions` and `GET /deviceManagement/termsAndConditions/{id}/assignments`
 
 ### Version 1.0.12 - November 2025
 - ✨ Added support for Intune Role Assignments
